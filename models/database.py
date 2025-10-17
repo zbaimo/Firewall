@@ -73,8 +73,8 @@ class Fingerprint(Base):
     # 最后评分更新时间（用于分数衰减）
     last_score_update = Column(DateTime, default=datetime.now)
     
-    # 额外信息（JSON格式）
-    metadata = Column(Text)  # 存储地理位置、设备类型等
+    # 额外信息（JSON格式）- 使用extra_data避免与SQLAlchemy的metadata冲突
+    extra_data = Column(Text)  # 存储地理位置、设备类型等
 
 
 class IdentityChain(Base):
@@ -258,6 +258,90 @@ class ScoringRule(Base):
     # 创建和更新时间
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class PortRule(Base):
+    """端口规则"""
+    __tablename__ = 'port_rules'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # 端口信息
+    port = Column(Integer, index=True)
+    protocol = Column(String(10))  # tcp, udp
+    
+    # 动作
+    action = Column(String(20))  # allow, deny
+    
+    # 描述
+    description = Column(String(200))
+    
+    # 创建信息
+    created_at = Column(DateTime, default=datetime.now)
+    created_by = Column(String(50), default='admin')
+    
+    # 是否活跃
+    is_active = Column(Boolean, default=True)
+    
+    __table_args__ = (
+        Index('idx_port_protocol', 'port', 'protocol'),
+    )
+
+
+class User(Base):
+    """用户表"""
+    __tablename__ = 'users'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # 用户名和密码
+    username = Column(String(50), unique=True, index=True)
+    password_hash = Column(String(64))
+    
+    # 2FA/TOTP
+    totp_secret = Column(String(32), nullable=True)  # 已启用的密钥
+    totp_secret_pending = Column(String(32), nullable=True)  # 待验证的密钥
+    totp_enabled_at = Column(DateTime, nullable=True)
+    
+    # 用户状态
+    is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False)
+    require_password_change = Column(Boolean, default=True)
+    
+    # 登录信息
+    last_login = Column(DateTime, nullable=True)
+    last_login_attempt = Column(DateTime, nullable=True)
+    failed_login_attempts = Column(Integer, default=0)
+    
+    # 密码修改
+    password_changed_at = Column(DateTime, nullable=True)
+    
+    # 创建时间
+    created_at = Column(DateTime, default=datetime.now)
+    
+    # API密钥
+    api_key = Column(String(64), nullable=True, unique=True)
+    api_key_created_at = Column(DateTime, nullable=True)
+
+
+class Session(Base):
+    """会话表"""
+    __tablename__ = 'sessions'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    session_token = Column(String(64), unique=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    
+    created_at = Column(DateTime, default=datetime.now)
+    expires_at = Column(DateTime)
+    
+    # 会话信息
+    ip_address = Column(String(45))
+    user_agent = Column(Text)
+    
+    # 是否活跃
+    is_active = Column(Boolean, default=True)
 
 
 class Database:

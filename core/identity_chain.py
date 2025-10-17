@@ -4,7 +4,7 @@
 """
 import json
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from models.database import IdentityChain, Fingerprint, AccessLog
 
 

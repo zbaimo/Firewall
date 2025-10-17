@@ -19,6 +19,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+pip-log.txt
+pip-delete-this-directory.txt
 
 # 虚拟环境
 venv/
@@ -31,10 +33,19 @@ venv.bak/
 *.db
 *.sqlite
 *.sqlite3
+firewall.db
+firewall.db-*
 
 # 日志文件
 *.log
 logs/
+audit.log
+audit_*.log
+
+# 导出文件
+exports/
+*.csv
+*.json
 
 # IDE
 .vscode/
@@ -43,20 +54,44 @@ logs/
 *.swo
 *~
 .DS_Store
+*.code-workspace
 
-# 配置文件（如果包含敏感信息）
-# config.yaml
+# 配置文件（本地配置）
+config.yaml.local
+config.yaml.prod
+*.env
+.env.*
+
+# GeoIP数据库（大文件，用户自行下载）
+GeoLite2-*.mmdb
 
 # 测试
 .pytest_cache/
 .coverage
 htmlcov/
+test_*.log
+test_access.log
 
 # Redis
 dump.rdb
+appendonly.aof
+
+# Docker
+.docker/
+docker-compose.override.yml
 
 # 临时文件
 tmp/
 temp/
 *.tmp
+*.bak
+*.swp
+
+# 系统文件
+Thumbs.db
+desktop.ini
+
+# 备份文件
+*.backup
+backup/
 

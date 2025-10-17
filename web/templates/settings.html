@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置 - Nginx防火墙</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f7fafc;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: #2d3748;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0.75rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #4a5568;
+        }
+        
+        .form-input {
+            width: 100%;
+            max-width: 400px;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        
+        .qr-code {
+            text-align: center;
+            margin: 1.5rem 0;
+        }
+        
+        .qr-code img {
+            max-width: 200px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        .secret-code {
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: monospace;
+            text-align: center;
+            margin: 1rem 0;
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+        }
+        
+        .api-key-display {
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.875rem;
+            word-break: break-all;
+            margin: 1rem 0;
+        }
+        
+        .copy-btn {
+            margin-left: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: #48bb78;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        
+        .back-link {
+            display: inline-block;
+            color: white;
+            text-decoration: none;
+            margin-top: 0.5rem;
+        }
+        
+        .info-box {
+            background: #e0f2fe;
+            border: 1px solid #bae6fd;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            color: #075985;
+            font-size: 0.875rem;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>⚙️ 用户设置</h1>
+        <a href="/" class="back-link">← 返回仪表板</a>
+    </div>
+    
+    <div class="container">
+        <!-- 修改密码 -->
+        <div class="section">
+            <h2 class="section-title">🔑 修改密码</h2>
+            
+            <form id="password-form" onsubmit="changePassword(event)">
+                <div class="form-group">
+                    <label class="form-label">当前密码</label>
+                    <input type="password" id="current-pwd" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">新密码</label>
+                    <input type="password" id="new-pwd" class="form-input" minlength="8" required>
+                    <small style="color:#718096;">至少8个字符</small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">确认新密码</label>
+                    <input type="password" id="confirm-pwd" class="form-input" minlength="8" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">修改密码</button>
+            </form>
+        </div>
+        
+        <!-- 双因素认证 -->
+        <div class="section">
+            <h2 class="section-title">🔒 双因素认证 (2FA)</h2>
+            
+            <div class="info-box">
+                <strong>ℹ️ 什么是双因素认证？</strong><br>
+                除了密码外，还需要手机上的验证码才能登录，大大提高账号安全性。<br>
+                推荐使用：Google Authenticator、Microsoft Authenticator、Authy等应用。
+            </div>
+            
+            <div id="totp-disabled-view">
+                <p style="margin-bottom:1rem;color:#718096;">双因素认证当前未启用</p>
+                <button class="btn btn-primary" onclick="startSetupTotp()">
+                    启用双因素认证
+                </button>
+            </div>
+            
+            <div id="totp-setup-view" class="hidden">
+                <p style="margin-bottom:1rem;"><strong>步骤 1:</strong> 扫描二维码</p>
+                <div class="qr-code">
+                    <img id="qr-code-img" src="" alt="QR Code">
+                </div>
+                
+                <p style="margin-bottom:0.5rem;"><strong>或手动输入密钥:</strong></p>
+                <div class="secret-code" id="secret-code">-</div>
+                
+                <p style="margin-bottom:1rem;"><strong>步骤 2:</strong> 输入验证码确认</p>
+                <div class="form-group">
+                    <input type="text" id="totp-verify" class="form-input" 
+                           placeholder="输入6位验证码" maxlength="6">
+                </div>
+                
+                <button class="btn btn-primary" onclick="enableTotp()">
+                    确认启用
+                </button>
+                <button class="btn btn-secondary" onclick="cancelSetupTotp()" style="margin-left:0.5rem;">
+                    取消
+                </button>
+            </div>
+            
+            <div id="totp-enabled-view" class="hidden">
+                <p style="margin-bottom:1rem;color:#48bb78;">✓ 双因素认证已启用</p>
+                <p style="margin-bottom:1rem;font-size:0.875rem;color:#718096;">
+                    启用时间: <span id="totp-enabled-at">-</span>
+                </p>
+                <button class="btn btn-danger" onclick="showDisableTotp()">
+                    禁用双因素认证
+                </button>
+                
+                <div id="totp-disable-form" class="hidden" style="margin-top:1rem;">
+                    <div class="form-group">
+                        <label class="form-label">请输入密码确认</label>
+                        <input type="password" id="totp-disable-pwd" class="form-input">
+                    </div>
+                    <button class="btn btn-danger" onclick="disableTotp()">
+                        确认禁用
+                    </button>
+                    <button class="btn btn-secondary" onclick="cancelDisableTotp()" style="margin-left:0.5rem;">
+                        取消
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- API密钥 -->
+        <div class="section">
+            <h2 class="section-title">🔑 API密钥</h2>
+            
+            <div class="info-box">
+                <strong>ℹ️ API密钥用途</strong><br>
+                可以使用API密钥通过程序调用系统接口，实现自动化管理。
+            </div>
+            
+            <div id="api-key-view">
+                <p style="margin-bottom:1rem;color:#718096;">还未生成API密钥</p>
+                <button class="btn btn-primary" onclick="generateApiKey()">
+                    生成API密钥
+                </button>
+            </div>
+            
+            <div id="api-key-generated" class="hidden">
+                <p style="margin-bottom:0.5rem;font-weight:500;">您的API密钥:</p>
+                <div class="api-key-display" id="api-key-text">-</div>
+                <button class="copy-btn" onclick="copyApiKey()">📋 复制</button>
+                
+                <div style="margin-top:1rem;padding:0.75rem;background:#fff7ed;border-radius:6px;font-size:0.875rem;color:#9a3412;">
+                    ⚠️ 请妥善保管API密钥，它只会显示一次！
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showAlert(message, type = 'success') {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+            
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 3000);
+        }
+        
+        // 修改密码
+        function changePassword(e) {
+            e.preventDefault();
+            
+            const oldPassword = document.getElementById('current-pwd').value;
+            const newPassword = document.getElementById('new-pwd').value;
+            const confirmPassword = document.getElementById('confirm-pwd').value;
+            
+            if (newPassword !== confirmPassword) {
+                alert('两次输入的密码不一致');
+                return;
+            }
+            
+            fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({old_password: oldPassword, new_password: newPassword})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✓ 密码修改成功');
+                    document.getElementById('password-form').reset();
+                } else {
+                    alert(data.message || '修改失败');
+                }
+            });
+        }
+        
+        // 设置TOTP
+        function startSetupTotp() {
+            fetch('/api/auth/totp/generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('qr-code-img').src = data.qr_code;
+                    document.getElementById('secret-code').textContent = data.secret;
+                    document.getElementById('totp-disabled-view').classList.add('hidden');
+                    document.getElementById('totp-setup-view').classList.remove('hidden');
+                }
+            });
+        }
+        
+        function enableTotp() {
+            const token = document.getElementById('totp-verify').value;
+            
+            if (!token || token.length !== 6) {
+                alert('请输入6位验证码');
+                return;
+            }
+            
+            fetch('/api/auth/totp/enable', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({token})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✓ 双因素认证已启用');
+                    location.reload();
+                } else {
+                    alert(data.message || '启用失败');
+                }
+            });
+        }
+        
+        function cancelSetupTotp() {
+            document.getElementById('totp-setup-view').classList.add('hidden');
+            document.getElementById('totp-disabled-view').classList.remove('hidden');
+        }
+        
+        function showDisableTotp() {
+            document.getElementById('totp-disable-form').classList.remove('hidden');
+        }
+        
+        function cancelDisableTotp() {
+            document.getElementById('totp-disable-form').classList.add('hidden');
+        }
+        
+        function disableTotp() {
+            const password = document.getElementById('totp-disable-pwd').value;
+            
+            if (!password) {
+                alert('请输入密码');
+                return;
+            }
+            
+            fetch('/api/auth/totp/disable', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({password})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('双因素认证已禁用');
+                    location.reload();
+                } else {
+                    alert(data.message || '禁用失败');
+                }
+            });
+        }
+        
+        // 生成API密钥
+        function generateApiKey() {
+            if (!confirm('确定要生成新的API密钥吗？\n旧密钥将失效。')) return;
+            
+            fetch('/api/auth/api-key/generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('api-key-text').textContent = data.api_key;
+                    document.getElementById('api-key-view').classList.add('hidden');
+                    document.getElementById('api-key-generated').classList.remove('hidden');
+                }
+            });
+        }
+        
+        function copyApiKey() {
+            const apiKey = document.getElementById('api-key-text').textContent;
+            navigator.clipboard.writeText(apiKey).then(() => {
+                alert('✓ 已复制到剪贴板');
+            });
+        }
+    </script>
+</body>
+</html>
+

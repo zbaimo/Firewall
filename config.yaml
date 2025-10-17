@@ -227,7 +227,13 @@ web_dashboard:
   enabled: true
   host: "127.0.0.1"
   port: 8080
-  secret_key: "change-this-secret-key"  # 请修改
+  secret_key: "change-this-secret-key"  # 请修改（用于session加密）
+
+# 用户认证配置 ⭐ 新功能
+authentication:
+  enabled: true  # 启用用户认证
+  password_salt: "firewall-salt-2025"  # 密码加盐（请修改）
+  session_timeout_hours: 24  # 会话超时时间（小时）
 
 # 实时告警配置 ⭐ 新功能
 alerts:
@@ -263,4 +269,37 @@ alerts:
     enabled: false
     bot_token: "your-bot-token"
     chat_id: "your-chat-id"
+
+# 自定义规则引擎 ⭐ 高级功能
+custom_rules:
+  # 示例规则1：深夜异常访问
+  - name: "深夜异常访问"
+    description: "检测凌晨2-5点的敏感路径访问"
+    enabled: true
+    priority: 100
+    conditions:
+      time_range: "02:00-05:00"
+      path_contains: "/admin"
+    score: 30
+    action: "score"
+  
+  # 示例规则2：疑似爬虫
+  - name: "疑似爬虫"
+    description: "检测User-Agent包含bot且访问频繁"
+    enabled: false
+    priority: 50
+    conditions:
+      user_agent_contains: "bot"
+    score: 15
+    action: "score"
+  
+  # 示例规则3：大文件下载
+  - name: "大文件下载检测"
+    description: "检测响应超过10MB的请求"
+    enabled: false
+    priority: 20
+    conditions:
+      response_size_gt: 10485760  # 10MB
+    score: 5
+    action: "monitor"
 

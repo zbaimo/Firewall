@@ -118,13 +118,13 @@ class GeoAnalyzer:
                 Fingerprint.base_hash == base_hash
             ).first()
             
-            if not fingerprint or not fingerprint.metadata:
+            if not fingerprint or not fingerprint.extra_data:
                 # 首次访问，保存地理位置
                 return False, None, None
             
             import json
-            metadata = json.loads(fingerprint.metadata) if isinstance(fingerprint.metadata, str) else fingerprint.metadata
-            last_location = metadata.get('last_location')
+            extra_data = json.loads(fingerprint.extra_data) if isinstance(fingerprint.extra_data, str) else fingerprint.extra_data
+            last_location = extra_data.get('last_location')
             
             if not last_location:
                 return False, None, None
@@ -185,10 +185,10 @@ class GeoAnalyzer:
             ).first()
             
             if fingerprint:
-                metadata = json.loads(fingerprint.metadata) if fingerprint.metadata else {}
-                metadata['last_location'] = location
-                metadata['location_updated_at'] = datetime.now().isoformat()
-                fingerprint.metadata = json.dumps(metadata)
+                extra_data = json.loads(fingerprint.extra_data) if fingerprint.extra_data else {}
+                extra_data['last_location'] = location
+                extra_data['location_updated_at'] = datetime.now().isoformat()
+                fingerprint.extra_data = json.dumps(extra_data)
                 session.commit()
         except Exception as e:
             session.rollback()

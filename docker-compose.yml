@@ -3,7 +3,7 @@ version: '3.8'
 services:
   firewall:
     build: .
-    image: firewall-system:latest
+    image: your-dockerhub-username/nginx-firewall:latest  # 或使用 :v1.0.0 指定版本
     container_name: nginx-firewall
     restart: unless-stopped
     

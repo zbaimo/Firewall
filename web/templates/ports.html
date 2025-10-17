@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>端口管理 - 防火墙后台</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <style>
+        .port-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .port-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .port-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            border-color: #667eea;
+        }
+        
+        .port-card.active {
+            border-color: #48bb78;
+            background: #f0fff4;
+        }
+        
+        .port-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .port-name {
+            font-size: 0.875rem;
+            color: #718096;
+        }
+        
+        .port-description {
+            font-size: 0.75rem;
+            color: #a0aec0;
+            margin-top: 0.5rem;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.show {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 25px rgba(0,0,0,0.2);
+        }
+        
+        .modal-header {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: #2d3748;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #4a5568;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+        
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        
+        .status-open { background: #48bb78; }
+        .status-blocked { background: #f56565; }
+        .status-closed { background: #a0aec0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>🔌 端口管理</h1>
+            <div>
+                <a href="/" class="btn btn-secondary">← 返回仪表板</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- 快速操作 -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">快速操作</h2>
+                <button class="btn btn-primary" onclick="showCustomPortModal()">➕ 自定义端口</button>
+            </div>
+            
+            <h3 style="margin: 1rem 0; color: #4a5568;">常用端口</h3>
+            <div class="port-grid" id="common-ports">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <div>加载中...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 当前规则 -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">当前端口规则</h2>
+                <button class="btn btn-primary btn-sm" onclick="loadPortRules()">🔄 刷新</button>
+            </div>
+            <div id="port-rules-table">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <div>加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 自定义端口模态框 -->
+    <div id="custom-port-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">添加自定义端口规则</div>
+            
+            <div class="form-group">
+                <label class="form-label">端口号</label>
+                <input type="number" id="custom-port" class="form-input" 
+                       min="1" max="65535" placeholder="输入端口号 (1-65535)">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">协议</label>
+                <select id="custom-protocol" class="form-select">
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                    <option value="both">TCP + UDP</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">操作类型</label>
+                <select id="custom-action" class="form-select">
+                    <option value="open">允许（ACCEPT）</option>
+                    <option value="block">阻止（DROP）</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">描述</label>
+                <input type="text" id="custom-description" class="form-input" 
+                       placeholder="例如：Web服务器">
+            </div>
+            
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" onclick="hideCustomPortModal()">取消</button>
+                <button class="btn btn-primary" onclick="addCustomPort()">确定</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 加载常用端口
+        function loadCommonPorts() {
+            fetch('/api/ports/common')
+                .then(r => r.json())
+                .then(data => {
+                    let html = '';
+                    
+                    data.forEach(p => {
+                        html += `
+                            <div class="port-card" onclick="togglePort(${p.port}, '${p.protocol}')">
+                                <div class="port-number">${p.port}</div>
+                                <div class="port-name">${p.name}</div>
+                                <div class="port-description">${p.description}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    document.getElementById('common-ports').innerHTML = html;
+                });
+        }
+        
+        // 加载端口规则
+        function loadPortRules() {
+            fetch('/api/ports')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        document.getElementById('port-rules-table').innerHTML = 
+                            '<p style="text-align:center;color:#888;padding:2rem;">暂无端口规则</p>';
+                        return;
+                    }
+                    
+                    let html = '<table>';
+                    html += '<thead><tr><th>端口</th><th>协议</th><th>状态</th><th>描述</th><th>创建时间</th><th>操作</th></tr></thead>';
+                    html += '<tbody>';
+                    
+                    data.forEach(rule => {
+                        const statusClass = rule.action === 'allow' ? 'open' : 'blocked';
+                        const statusText = rule.action === 'allow' ? '开放' : '阻止';
+                        const time = new Date(rule.created_at).toLocaleString('zh-CN');
+                        
+                        html += `<tr>
+                            <td><strong>${rule.port}</strong></td>
+                            <td>${rule.protocol.toUpperCase()}</td>
+                            <td>
+                                <span class="status-indicator status-${statusClass}"></span>
+                                ${statusText}
+                            </td>
+                            <td>${rule.description || '-'}</td>
+                            <td>${time}</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" 
+                                        onclick="closePort(${rule.port}, '${rule.protocol}')">
+                                    关闭
+                                </button>
+                            </td>
+                        </tr>`;
+                    });
+                    
+                    html += '</tbody></table>';
+                    document.getElementById('port-rules-table').innerHTML = html;
+                })
+                .catch(e => {
+                    document.getElementById('port-rules-table').innerHTML = 
+                        '<p style="text-align:center;color:#e53e3e;padding:2rem;">⚠️ 端口管理器未启用或出错</p>';
+                });
+        }
+        
+        // 切换端口状态
+        function togglePort(port, protocol) {
+            const action = confirm(`是否要开放端口 ${port}/${protocol}？\n\n点击"确定"开放，点击"取消"阻止`);
+            
+            if (action) {
+                openPort(port, protocol);
+            } else {
+                blockPort(port, protocol);
+            }
+        }
+        
+        // 开放端口
+        function openPort(port, protocol) {
+            fetch('/api/ports/open', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({port, protocol})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✓ ${data.message}`);
+                    loadPortRules();
+                } else {
+                    alert(`✗ ${data.message || '操作失败'}`);
+                }
+            });
+        }
+        
+        // 阻止端口
+        function blockPort(port, protocol) {
+            fetch('/api/ports/block', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({port, protocol})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✓ ${data.message}`);
+                    loadPortRules();
+                } else {
+                    alert(`✗ ${data.message || '操作失败'}`);
+                }
+            });
+        }
+        
+        // 关闭端口
+        function closePort(port, protocol) {
+            if (!confirm(`确定要关闭端口 ${port}/${protocol} 吗？`)) return;
+            
+            fetch('/api/ports/close', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({port, protocol})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✓ ${data.message}`);
+                    loadPortRules();
+                } else {
+                    alert(`✗ ${data.message || '操作失败'}`);
+                }
+            });
+        }
+        
+        // 显示自定义端口模态框
+        function showCustomPortModal() {
+            document.getElementById('custom-port-modal').classList.add('show');
+        }
+        
+        // 隐藏模态框
+        function hideCustomPortModal() {
+            document.getElementById('custom-port-modal').classList.remove('show');
+        }
+        
+        // 添加自定义端口
+        function addCustomPort() {
+            const port = parseInt(document.getElementById('custom-port').value);
+            const protocol = document.getElementById('custom-protocol').value;
+            const action = document.getElementById('custom-action').value;
+            const description = document.getElementById('custom-description').value;
+            
+            if (!port || port < 1 || port > 65535) {
+                alert('请输入有效的端口号 (1-65535)');
+                return;
+            }
+            
+            const endpoint = action === 'open' ? '/api/ports/open' : '/api/ports/block';
+            
+            // 处理both协议
+            const protocols = protocol === 'both' ? ['tcp', 'udp'] : [protocol];
+            
+            let promises = [];
+            protocols.forEach(proto => {
+                promises.push(
+                    fetch(endpoint, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({port, protocol: proto, description})
+                    }).then(r => r.json())
+                );
+            });
+            
+            Promise.all(promises).then(results => {
+                const allSuccess = results.every(r => r.success);
+                
+                if (allSuccess) {
+                    alert(`✓ 端口 ${port} 已配置成功`);
+                    hideCustomPortModal();
+                    loadPortRules();
+                    
+                    // 清空表单
+                    document.getElementById('custom-port').value = '';
+                    document.getElementById('custom-description').value = '';
+                } else {
+                    alert('部分操作失败，请检查系统日志');
+                }
+            });
+        }
+        
+        // 点击模态框外部关闭
+        document.getElementById('custom-port-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideCustomPortModal();
+            }
+        });
+        
+        // 初始加载
+        loadCommonPorts();
+        loadPortRules();
+        
+        // 定时刷新
+        setInterval(loadPortRules, 30000);  // 30秒
+    </script>
+</body>
+</html>
+

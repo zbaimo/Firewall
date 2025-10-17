@@ -6,7 +6,7 @@ import platform
 import subprocess
 import ipaddress
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict
 import re
 
 

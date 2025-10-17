@@ -1,0 +1,77 @@
+# 生产环境 Docker Compose 配置
+# 使用特定版本标签，不使用latest
+
+version: '3.8'
+
+services:
+  firewall:
+    image: your-dockerhub-username/nginx-firewall:v1.0.0  # ⚠️ 使用固定版本
+    container_name: nginx-firewall-prod
+    restart: always
+    
+    # 主机网络模式（可以操作主机iptables）
+    network_mode: "host"
+    
+    volumes:
+      # 配置文件（只读）
+      - ./config.yaml:/app/config.yaml:ro
+      
+      # Nginx日志（只读）
+      - /var/log/nginx:/var/log/nginx:ro
+      
+      # 数据持久化
+      - firewall-data:/data
+      - ./exports:/app/exports
+      - ./logs:/app/logs
+      
+      # GeoIP数据库
+      - ./GeoLite2-City.mmdb:/app/GeoLite2-City.mmdb:ro
+    
+    environment:
+      - TZ=Asia/Shanghai
+      - REDIS_HOST=localhost  # host网络模式下使用localhost
+    
+    # 需要特权模式来操作防火墙
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+  
+  # Redis服务（如果不使用host网络模式）
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: firewall-redis
+  #   restart: always
+  #   command: redis-server --appendonly yes --maxmemory 256mb
+  #   volumes:
+  #     - redis-data:/data
+
+volumes:
+  firewall-data:
+  # redis-data:
+

@@ -148,8 +148,8 @@ network_mode: "host"
 
 1. 访问: `Settings` → `Secrets and variables` → `Actions`
 2. 添加以下secrets：
-   - `DOCKER_USERNAME`: 你的Docker Hub用户名
-   - `DOCKER_PASSWORD`: 你的Docker Hub访问令牌
+   - `DOCKERHUB_USERNAME`: 你的Docker Hub用户名
+   - `DOCKERHUB_PASSWORD`: 你的Docker Hub访问令牌
 
 ### 2. 修改镜像名称
 

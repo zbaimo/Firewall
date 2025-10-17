@@ -10,4 +10,7 @@ apscheduler>=3.10.0
 ua-parser>=0.18.0
 geoip2>=4.7.0
 flask-cors>=4.0.0
+pyotp>=2.9.0
+qrcode>=7.4.2
+pillow>=10.0.0
 

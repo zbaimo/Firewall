@@ -16,6 +16,14 @@ from core.fingerprint import FingerprintGenerator, BehaviorAnalyzer
 from core.identity_chain import IdentityChainManager
 from core.threat_detector import ThreatDetector
 from core.firewall import FirewallExecutor
+from core.cache_manager import CacheManager
+from core.geo_analyzer import GeoAnalyzer
+from core.alert_manager import AlertManager
+from core.audit_logger import AuditLogger
+from core.scoring_system import ThreatScoringSystem
+from core.rule_engine import RuleEngine
+from core.port_manager import PortManager
+from core.auth_manager import AuthManager
 
 
 class FirewallSystem:
@@ -38,13 +46,27 @@ class FirewallSystem:
         print("正在初始化数据库...")
         self.db = Database(self.config)
         
-        # 初始化各模块
+        # 初始化性能优化模块
+        print("正在初始化性能优化模块...")
+        self.cache_manager = CacheManager(self.config)
+        
+        # 初始化核心模块
         print("正在初始化核心模块...")
         self.fingerprint_gen = FingerprintGenerator(self.config)
         self.behavior_analyzer = BehaviorAnalyzer(self.config)
         self.identity_chain_mgr = IdentityChainManager(self.db, self.config, self.fingerprint_gen)
         self.threat_detector = ThreatDetector(self.db, self.config)
         self.firewall = FirewallExecutor(self.db, self.config)
+        
+        # 初始化高级功能
+        print("正在初始化高级功能...")
+        self.geo_analyzer = GeoAnalyzer(self.db, self.cache_manager, self.config)
+        self.alert_manager = AlertManager(self.config)
+        self.audit_logger = AuditLogger(self.config)
+        self.scoring_system = ThreatScoringSystem(self.db, self.config)
+        self.rule_engine = RuleEngine(self.db, self.config)
+        self.port_manager = PortManager(self.db, self.config, self.audit_logger)
+        self.auth_manager = AuthManager(self.db, self.config)
         
         # 日志监控器
         nginx_config = self.config.get('nginx', {})
@@ -86,14 +108,47 @@ class FirewallSystem:
             # 3. 更新或创建指纹记录
             self.update_fingerprint(log_data)
             
-            # 4. 行为分析 - 检查是否需要创建身份链
+            # 4. 地理位置分析
+            if self.geo_analyzer.enabled:
+                location = self.geo_analyzer.get_location(ip)
+                if location:
+                    self.geo_analyzer.update_location_metadata(base_hash, location)
+                    
+                    # 检测地理位置异常
+                    is_anomaly, reason, geo_score = self.geo_analyzer.check_geo_anomaly(ip, base_hash)
+                    if is_anomaly and self.scoring_system.enabled:
+                        self.scoring_system.add_score_to_fingerprint(base_hash, geo_score, reason)
+                        if self.alert_manager.enabled:
+                            self.alert_manager.send_threat_alert(
+                                ip, 'geo_anomaly', 'medium', reason, 
+                                {'location': location, 'score': geo_score}
+                            )
+            
+            # 5. 行为分析 - 检查是否需要创建身份链
             behavior_analysis = self.behavior_analyzer.analyze_behavior_change(base_hash, self.db.get_session())
             if behavior_analysis.get('should_create_chain'):
                 chain_id = self.identity_chain_mgr.check_and_create_chain(base_hash, behavior_analysis)
                 if chain_id:
                     self.logger.info(f"创建身份链 #{chain_id} for {ip} (hash: {base_hash[:8]}...)")
+                    if self.audit_logger:
+                        self.audit_logger.log_system_event('identity_chain_created', {
+                            'chain_id': chain_id,
+                            'ip': ip,
+                            'base_hash': base_hash[:16]
+                        })
             
-            # 5. 威胁检测
+            # 6. 自定义规则检测
+            if self.rule_engine:
+                rule_matches = self.rule_engine.evaluate(log_data)
+                for match in rule_matches:
+                    if match['action'] == 'score' and self.scoring_system.enabled:
+                        self.scoring_system.add_score_to_fingerprint(
+                            base_hash, 
+                            match['score'], 
+                            f"自定义规则: {match['rule_name']}"
+                        )
+            
+            # 7. 威胁检测
             threats = self.threat_detector.detect(log_data)
             
             if threats:
@@ -175,16 +230,48 @@ class FirewallSystem:
             # 保存威胁事件
             event_id = self.threat_detector.save_threat_event(ip, base_hash, threat)
             
-            # 根据严重程度决定是否封禁
-            should_ban = self.should_ban_for_threat(threat)
-            
-            if should_ban:
-                # 执行封禁
-                ban_duration = self.get_ban_duration(threat)
-                success = self.firewall.ban_ip(ip, description, ban_duration, event_id)
+            # 使用评分系统（如果启用）
+            if self.scoring_system and self.scoring_system.enabled:
+                # 计算威胁分数
+                threat_score = self.scoring_system.calculate_threat_score(threat)
+                self.scoring_system.add_score_to_fingerprint(
+                    base_hash, 
+                    threat_score, 
+                    f"威胁检测: {threat_type}",
+                    event_id
+                )
                 
-                if success:
-                    log_ban(self.logger, ip, description)
+                # 检查是否应该封禁
+                should_ban, ban_type, ban_duration = self.scoring_system.should_ban(base_hash)
+                
+                if should_ban:
+                    success = self.firewall.ban_ip(ip, f"评分超限: {description}", ban_duration, event_id)
+                    if success:
+                        log_ban(self.logger, ip, description)
+                        if self.audit_logger:
+                            self.audit_logger.log_ban(ip, description, ban_duration)
+                        if self.alert_manager:
+                            self.alert_manager.send_ban_alert(ip, description, ban_duration)
+            else:
+                # 使用传统封禁逻辑
+                should_ban = self.should_ban_for_threat(threat)
+                
+                if should_ban:
+                    ban_duration = self.get_ban_duration(threat)
+                    success = self.firewall.ban_ip(ip, description, ban_duration, event_id)
+                    
+                    if success:
+                        log_ban(self.logger, ip, description)
+                        if self.audit_logger:
+                            self.audit_logger.log_ban(ip, description, ban_duration)
+            
+            # 发送告警
+            if self.alert_manager and self.alert_manager.enabled:
+                if severity in ['critical', 'high']:
+                    self.alert_manager.send_threat_alert(
+                        ip, threat_type, severity, description,
+                        threat.get('details')
+                    )
     
     def should_ban_for_threat(self, threat: dict) -> bool:
         """判断是否应该为该威胁封禁IP"""
@@ -330,6 +417,12 @@ class FirewallSystem:
         print(f"📝 日志文件: {self.config['nginx']['access_log']}")
         print(f"💾 数据库: {self.config['database']['path']}")
         print(f"🔥 防火墙: {'启用' if self.firewall.enabled else '禁用'}")
+        print(f"⚡ Redis缓存: {'启用' if self.cache_manager.is_enabled() else '禁用'}")
+        print(f"🌍 地理位置: {'启用' if self.geo_analyzer.enabled else '禁用'}")
+        print(f"📋 审计日志: {'启用' if self.audit_logger.enabled else '禁用'}")
+        print(f"🔔 实时告警: {'启用' if self.alert_manager.enabled else '禁用'}")
+        print(f"📊 评分系统: {'启用' if self.scoring_system.enabled else '禁用'}")
+        print(f"⚙️  自定义规则: {len(self.rule_engine.rules)} 条")
         
         if web_config.get('enabled'):
             print(f"🌐 管理后台: http://{web_config['host']}:{web_config['port']}")
@@ -338,6 +431,14 @@ class FirewallSystem:
         print("按 Ctrl+C 停止系统")
         print("=" * 60)
         print()
+        
+        # 记录系统启动
+        if self.audit_logger:
+            self.audit_logger.log_system_event('system_start', {
+                'redis_enabled': self.cache_manager.is_enabled(),
+                'geo_enabled': self.geo_analyzer.enabled,
+                'alert_enabled': self.alert_manager.enabled
+            })
         
         # 启动日志监控
         try:
@@ -351,8 +452,13 @@ class FirewallSystem:
             from web.app import create_app
             
             web_config = self.config.get('web_dashboard', {})
-            app = create_app(self.config, self.db, self.firewall, 
-                           self.threat_detector, self.identity_chain_mgr)
+            app = create_app(
+                self.config, self.db, self.firewall, 
+                self.threat_detector, self.identity_chain_mgr,
+                self.cache_manager, self.geo_analyzer, 
+                self.audit_logger, self.scoring_system,
+                self.port_manager, self.auth_manager
+            )
             
             def run_flask():
                 app.run(
@@ -367,8 +473,8 @@ class FirewallSystem:
             flask_thread.start()
             
             self.logger.info("Web管理后台已启动")
-        except ImportError:
-            self.logger.warning("无法启动Web管理后台: Flask未安装")
+        except ImportError as e:
+            self.logger.warning(f"无法启动Web管理后台: {e}")
         except Exception as e:
             self.logger.error(f"启动Web管理后台失败: {e}")
     
@@ -377,11 +483,19 @@ class FirewallSystem:
         print("\n正在关闭系统...")
         self.running = False
         
+        # 记录系统停止
+        if self.audit_logger:
+            self.audit_logger.log_system_event('system_stop')
+        
         # 停止日志监控
         self.log_monitor.stop()
         
         # 停止定时任务
         self.scheduler.shutdown()
+        
+        # 关闭GeoIP数据库
+        if self.geo_analyzer:
+            self.geo_analyzer.close()
         
         self.logger.info("系统已停止")
         print("✓ 系统已关闭")

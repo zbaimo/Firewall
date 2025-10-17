@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - Nginx防火墙</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .login-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 3rem;
+            width: 400px;
+            max-width: 90%;
+        }
+        
+        .logo {
+            text-align: center;
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2d3748;
+            margin-bottom: 0.5rem;
+            font-size: 1.5rem;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 2rem;
+            font-size: 0.875rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #4a5568;
+            font-weight: 500;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn-login {
+            width: 100%;
+            padding: 0.75rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .btn-login:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn-login:active {
+            transform: translateY(0);
+        }
+        
+        .alert {
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        
+        .alert-error {
+            background: #fee;
+            color: #c00;
+            border: 1px solid #fcc;
+        }
+        
+        .alert-info {
+            background: #e0f2fe;
+            color: #075985;
+            border: 1px solid #bae6fd;
+        }
+        
+        .totp-section {
+            display: none;
+        }
+        
+        .default-credentials {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            color: #9a3412;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">🛡️</div>
+        <h1>Nginx防火墙管理后台</h1>
+        <p class="subtitle">请登录以继续</p>
+        
+        <div id="alert" class="alert"></div>
+        
+        <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label class="form-label">用户名</label>
+                <input type="text" id="username" class="form-input" 
+                       placeholder="输入用户名" autocomplete="username" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">密码</label>
+                <input type="password" id="password" class="form-input" 
+                       placeholder="输入密码" autocomplete="current-password" required>
+            </div>
+            
+            <div id="totp-section" class="form-group totp-section">
+                <label class="form-label">双因素认证码</label>
+                <input type="text" id="totp" class="form-input" 
+                       placeholder="输入6位验证码" maxlength="6">
+            </div>
+            
+            <button type="submit" class="btn-login" id="login-btn">
+                登录
+            </button>
+        </form>
+        
+        <div class="default-credentials">
+            <strong>ℹ️ 首次登录</strong><br>
+            默认用户名: admin<br>
+            默认密码: admin<br>
+            <small>登录后将强制修改密码</small>
+        </div>
+    </div>
+    
+    <script>
+        let require2FA = false;
+        
+        function showAlert(message, type = 'error') {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+            
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+        
+        function handleLogin(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const totp_token = document.getElementById('totp').value || null;
+            
+            const button = document.getElementById('login-btn');
+            button.textContent = '登录中...';
+            button.disabled = true;
+            
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password, totp_token})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('登录成功，正在跳转...', 'info');
+                    setTimeout(() => {
+                        window.location.href = data.redirect || '/';
+                    }, 500);
+                } else if (data.require_2fa) {
+                    // 显示2FA输入框
+                    require2FA = true;
+                    document.getElementById('totp-section').style.display = 'block';
+                    document.getElementById('totp').focus();
+                    showAlert('请输入双因素认证码', 'info');
+                    button.textContent = '登录';
+                    button.disabled = false;
+                } else {
+                    showAlert(data.message || '登录失败');
+                    button.textContent = '登录';
+                    button.disabled = false;
+                }
+            })
+            .catch(e => {
+                showAlert('网络错误，请重试');
+                button.textContent = '登录';
+                button.disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>
+
