@@ -1,0 +1,128 @@
+==============================================================================
+                        FIXED - Next Steps
+==============================================================================
+
+DONE: Docker image name updated to zbaimo/nginx-firewall
+
+Modified files:
+  - .github/workflows/docker-build.yml
+  - docker-compose.yml  
+  - docker-compose.prod.yml
+
+==============================================================================
+                    Step 1: Push to GitHub
+==============================================================================
+
+When network is back, run:
+
+git push origin main
+
+This will push your changes to GitHub.
+
+==============================================================================
+                Step 2: Configure Docker Hub Secrets
+==============================================================================
+
+Visit this URL:
+https://github.com/zbaimo/Firewall/settings/secrets/actions
+
+Add Secret 1:
+-------------
+Click: New repository secret
+
+Name:   DOCKERHUB_USERNAME
+Secret: zbaimo
+
+Click: Add secret
+
+
+Add Secret 2:
+-------------
+Get access token first:
+  1. Visit: https://hub.docker.com
+  2. Login
+  3. Avatar -> Account Settings -> Security
+  4. New Access Token
+  5. Description: github-actions
+  6. Permissions: Read, Write, Delete
+  7. Generate
+  8. COPY the token (dckr_pat_abc123...)
+
+Then add secret:
+
+Click: New repository secret
+
+Name:   DOCKERHUB_PASSWORD
+Secret: <paste your access token>
+
+Click: Add secret
+
+==============================================================================
+                Step 3: Re-run Workflow
+==============================================================================
+
+Visit: https://github.com/zbaimo/Firewall/actions
+
+Method 1:
+  Click failed workflow -> Re-run all jobs
+
+Method 2:
+  Left: Build and Push Docker Image
+  Right: Run workflow -> Select main -> Run workflow
+
+==============================================================================
+                    Expected Result
+==============================================================================
+
+After 5-10 minutes:
+
+GitHub Actions:
+  ✓ Login to Docker Hub (will succeed now)
+  ✓ Build Docker image
+  ✓ Push to zbaimo/nginx-firewall:latest
+  ✓ Push to zbaimo/nginx-firewall:main
+
+Docker Hub:
+  Repository: zbaimo/nginx-firewall
+  Tags: latest, main
+  Anyone can use: docker pull zbaimo/nginx-firewall:latest
+
+==============================================================================
+                Quick Reference Links
+==============================================================================
+
+Your GitHub repo:
+https://github.com/zbaimo/Firewall
+
+Configure Secrets:
+https://github.com/zbaimo/Firewall/settings/secrets/actions
+
+View Actions:
+https://github.com/zbaimo/Firewall/actions
+
+Your Docker Hub:
+https://hub.docker.com/r/zbaimo/nginx-firewall
+
+==============================================================================
+                    Summary
+==============================================================================
+
+What's done:
+  ✓ Image name fixed: zbaimo/nginx-firewall
+  ✓ All config files updated
+  ✓ Code committed locally
+
+What you need to do:
+  1. git push origin main (when network is back)
+  2. Configure DOCKERHUB_USERNAME secret
+  3. Configure DOCKERHUB_PASSWORD secret
+  4. Re-run workflow
+
+Total time: 3 minutes
+
+==============================================================================
+
+See also: SETUP_SECRETS.txt for detailed instructions
+
+==============================================================================
+
