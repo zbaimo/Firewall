@@ -1,0 +1,266 @@
+# Nginx日志防火墙配置文件
+
+# Nginx日志配置
+nginx:
+  access_log: "/var/log/nginx/access.log"  # Windows示例: "C:/nginx/logs/access.log"
+  error_log: "/var/log/nginx/error.log"
+  log_format: 'combined'  # combined, json, custom
+  
+# 数据库配置
+database:
+  type: "sqlite"  # sqlite, mysql, postgresql
+  path: "firewall.db"  # SQLite数据库文件
+  # MySQL/PostgreSQL配置（可选）
+  # host: "localhost"
+  # port: 3306
+  # user: "firewall"
+  # password: "password"
+  # database: "firewall_db"
+
+# Redis配置（用于高性能计数和缓存）⭐ 性能优化
+redis:
+  enabled: true  # 强烈建议启用，性能提升60%
+  host: "localhost"
+  port: 6379
+  db: 0
+  password: null
+
+# 指纹系统配置
+fingerprint:
+  # 基础指纹字段（用于生成base_hash）
+  base_fields:
+    - ip
+    - user_agent
+  
+  # 行为指纹字段（用于检测变化）
+  behavior_fields:
+    - request_path
+    - request_method
+    - status_code
+    - referer
+    - query_params
+  
+  # 数据保留期限（天）
+  # 智能清理策略：
+  # - 如果用户3天没有新访问，第4天删除该用户的所有记录
+  # - 如果用户持续有访问，则持续保存（last_seen不断更新）
+  retention_days: 3
+  
+  # 触发身份链创建的阈值
+  identity_chain_threshold:
+    same_base_count: 10      # 相同基础指纹出现10次
+    behavior_change_rate: 0.3  # 行为变化率超过30%
+
+# 威胁检测规则
+threat_detection:
+  # 频率限制
+  rate_limit:
+    enabled: true
+    window_seconds: 60       # 时间窗口60秒
+    max_requests: 100        # 最大请求数
+    
+  # 404扫描检测
+  scan_detection:
+    enabled: true
+    window_seconds: 300      # 5分钟内
+    max_404_count: 20        # 超过20个404
+    
+  # 敏感路径访问
+  sensitive_paths:
+    enabled: true
+    paths:
+      - "/.env"
+      - "/.git"
+      - "/admin"
+      - "/phpmyadmin"
+      - "/wp-admin"
+      - "/.aws"
+      - "/.ssh"
+      - "/config"
+      - "/backup"
+      
+  # SQL注入检测
+  sql_injection:
+    enabled: true
+    patterns:
+      - "union.*select"
+      - "select.*from"
+      - "insert.*into"
+      - "delete.*from"
+      - "drop.*table"
+      - "exec.*xp_"
+      - "'; --"
+      - "' or '1'='1"
+      
+  # XSS检测
+  xss_detection:
+    enabled: true
+    patterns:
+      - "<script"
+      - "javascript:"
+      - "onerror="
+      - "onload="
+      - "eval\\("
+      - "alert\\("
+      
+  # User-Agent黑名单
+  bad_user_agents:
+    enabled: true
+    patterns:
+      - "masscan"
+      - "nmap"
+      - "nikto"
+      - "sqlmap"
+      - "acunetix"
+      - "burpsuite"
+
+# 防火墙配置
+firewall:
+  enabled: true
+  os: "auto"  # auto, windows, linux
+  
+  # 封禁配置
+  ban:
+    default_duration: 3600    # 默认封禁时长（秒）
+    permanent_threshold: 5    # 5次封禁后永久封禁
+    
+  # 白名单（永不封禁）
+  whitelist:
+    - "127.0.0.1"
+    - "::1"
+    # - "192.168.1.0/24"  # 支持CIDR格式
+    
+  # 黑名单（直接封禁）
+  blacklist: []
+
+# 自动解封配置
+auto_unban:
+  enabled: true
+  check_interval: 300  # 每5分钟检查一次
+
+# 威胁评分系统配置
+scoring_system:
+  enabled: true
+  
+  # 分数衰减配置（分数会随时间自然降低）
+  score_decay_hours: 24        # 每24小时衰减一次
+  score_decay_rate: 0.5        # 衰减率：0.5表示减半
+  
+  # 封禁阈值（分数达到阈值时触发封禁）
+  ban_thresholds:
+    temporary_ban: 60          # 临时封禁：60分
+    extended_ban: 100          # 延长封禁：100分
+    permanent_ban: 150         # 永久封禁：150分
+  
+  # 封禁时长（秒）
+  ban_durations:
+    temporary_ban: 3600        # 1小时
+    extended_ban: 86400        # 24小时
+    permanent_ban: null        # 永久（null表示不解封）
+  
+  # 威胁类型基础分数（可自定义）
+  threat_scores:
+    sql_injection: 50          # SQL注入
+    xss_attack: 40             # XSS攻击
+    path_scan: 30              # 路径扫描
+    rate_limit_exceeded: 25    # 频率超限
+    sensitive_path_access: 15  # 敏感路径访问
+    bad_user_agent: 20         # 恶意User-Agent
+    multiple_404: 10           # 多次404
+    suspicious_query: 15       # 可疑查询
+  
+  # 严重程度乘数
+  severity_multipliers:
+    critical: 2.0              # 严重威胁 x2
+    high: 1.5                  # 高危威胁 x1.5
+    medium: 1.0                # 中等威胁 x1
+    low: 0.5                   # 低危威胁 x0.5
+  
+  # 行为模式额外分数
+  behavior_patterns:
+    tool_switching: 30         # 工具切换（攻击特征）
+    rapid_behavior_change: 25  # 快速行为变化
+    time_pattern_anomaly: 15   # 异常时间模式
+    geographic_anomaly: 20     # 地理位置异常
+  
+  # 分数奖励（良好行为可以降低分数）
+  score_rewards:
+    normal_access: -1          # 正常访问：-1分
+    successful_login: -5       # 成功登录：-5分
+    valid_session: -2          # 有效会话：-2分
+
+# IP地理位置分析 ⭐ 新功能
+geo_location:
+  enabled: true  # 启用地理位置分析
+  database_path: "GeoLite2-City.mmdb"  # GeoIP数据库路径
+  anomaly_threshold: 1000  # 异常距离阈值（km）
+  blocked_countries: []  # 封禁的国家代码列表，如: ["CN", "RU"]
+
+# 审计日志配置 ⭐ 合规审计
+audit:
+  enabled: true  # 启用审计日志
+  file: "audit.log"  # 审计日志文件
+  max_size_mb: 100  # 单文件最大大小（MB）
+
+# 记录导出配置
+export:
+  # 导出目录
+  directory: "exports"
+  
+  # 自动导出
+  auto_export_enabled: false      # 是否启用自动导出
+  auto_export_interval_hours: 24   # 自动导出间隔（小时）
+  auto_export_format: "json"       # 导出格式：json, csv, txt
+  
+  # 导出保留天数
+  retention_days: 30               # 导出文件保留30天
+
+# 日志配置
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "firewall.log"
+  max_size_mb: 100
+  backup_count: 5
+
+# Web管理后台
+web_dashboard:
+  enabled: true
+  host: "127.0.0.1"
+  port: 8080
+  secret_key: "change-this-secret-key"  # 请修改
+
+# 实时告警配置 ⭐ 新功能
+alerts:
+  enabled: false  # 设为true启用告警
+  
+  # 告警触发条件
+  alert_on_events:  # 哪些威胁类型触发告警
+    - "sql_injection"
+    - "xss_attack"
+    - "rate_limit_exceeded"
+    - "path_scan"
+  
+  min_alert_interval_seconds: 300  # 同一IP最小告警间隔（防止告警风暴）
+  
+  # 邮件告警
+  email:
+    enabled: false
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    username: "your-email@gmail.com"
+    password: "your-app-password"  # Gmail需使用应用专用密码
+    from_addr: "firewall@yourdomain.com"
+    to_addrs:
+      - "admin@yourdomain.com"
+  
+  # Webhook告警（企业微信、钉钉、Slack）
+  webhook:
+    enabled: false
+    url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"
+  
+  # Telegram Bot告警
+  telegram:
+    enabled: false
+    bot_token: "your-bot-token"
+    chat_id: "your-chat-id"
+

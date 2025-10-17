@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  firewall:
+    build: .
+    image: firewall-system:latest
+    container_name: nginx-firewall
+    restart: unless-stopped
+    
+    # 网络模式（host模式可以直接操作主机防火墙）
+    # network_mode: "host"  # Linux下使用，可以操作iptables
+    
+    ports:
+      - "8080:8080"  # Web管理后台
+    
+    volumes:
+      # 配置文件
+      - ./config.yaml:/app/config.yaml:ro
+      
+      # Nginx日志（只读）
+      - /var/log/nginx:/var/log/nginx:ro
+      
+      # 数据持久化
+      - firewall-data:/data
+      - ./exports:/app/exports
+      - ./logs:/app/logs
+      
+      # GeoIP数据库
+      - ./GeoLite2-City.mmdb:/app/GeoLite2-City.mmdb:ro
+    
+    environment:
+      - TZ=Asia/Shanghai
+      # 可以通过环境变量覆盖配置
+      # - REDIS_HOST=redis
+      # - REDIS_PORT=6379
+    
+    # 需要特权模式来操作防火墙（可选）
+    # privileged: true
+    # cap_add:
+    #   - NET_ADMIN
+    #   - NET_RAW
+    
+    depends_on:
+      - redis
+    
+    networks:
+      - firewall-network
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+  
+  redis:
+    image: redis:7-alpine
+    container_name: firewall-redis
+    restart: unless-stopped
+    
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    
+    volumes:
+      - redis-data:/data
+    
+    ports:
+      - "6379:6379"
+    
+    networks:
+      - firewall-network
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  firewall-data:
+  redis-data:
+
+networks:
+  firewall-network:
+    driver: bridge
+
