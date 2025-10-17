@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKER_IMAGE: your-dockerhub-username/nginx-firewall  # ⚠️ 改为你的Docker Hub用户名
+  DOCKER_IMAGE: zbaimo/nginx-firewall
   DOCKER_PLATFORMS: linux/amd64,linux/arm64
   VERSION: v1.0.0
 
