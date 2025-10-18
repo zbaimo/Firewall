@@ -992,5 +992,92 @@ def create_app(config, db, firewall, threat_detector, identity_chain_mgr,
         finally:
             session.close()
     
+    # ==================== 防火墙管理 ====================
+    
+    @app.route('/firewall')
+    @require_auth
+    def firewall_page():
+        """防火墙管理页面"""
+        return render_template('firewall.html', username=flask_session.get('username'))
+    
+    @app.route('/api/firewall/ban', methods=['POST'])
+    @require_auth
+    def api_ban_ip():
+        """手动封禁IP"""
+        if not firewall:
+            return jsonify({'success': False, 'message': '防火墙未初始化'}), 500
+        
+        data = request.json
+        ip = data.get('ip')
+        reason = data.get('reason', 'Manual ban')
+        duration = data.get('duration')
+        
+        success = firewall.ban_ip(ip, reason, duration)
+        return jsonify({'success': success, 'message': f'IP {ip} 已封禁' if success else '封禁失败'})
+    
+    @app.route('/api/firewall/unban', methods=['POST'])
+    @require_auth
+    def api_unban_ip():
+        """手动解封IP"""
+        if not firewall:
+            return jsonify({'success': False, 'message': '防火墙未初始化'}), 500
+        
+        data = request.json
+        ip = data.get('ip')
+        
+        success = firewall.unban_ip(ip)
+        return jsonify({'success': success, 'message': f'IP {ip} 已解封' if success else '解封失败'})
+    
+    @app.route('/api/firewall/unban-batch', methods=['POST'])
+    @require_auth
+    def api_unban_batch():
+        """批量解封IP"""
+        if not firewall:
+            return jsonify({'success': False, 'message': '防火墙未初始化'}), 500
+        
+        data = request.json
+        ips = data.get('ips', [])
+        
+        count = 0
+        for ip in ips:
+            if firewall.unban_ip(ip):
+                count += 1
+        
+        return jsonify({'success': True, 'count': count, 'total': len(ips)})
+    
+    @app.route('/api/firewall/stats')
+    @require_auth
+    def api_firewall_stats():
+        """获取防火墙统计"""
+        if not firewall or not hasattr(firewall, 'get_firewall_stats'):
+            return jsonify({'total_bans': 0, 'total_packets_blocked': 0, 'total_bytes_blocked': 0})
+        
+        stats = firewall.get_firewall_stats()
+        return jsonify(stats)
+    
+    @app.route('/api/firewall/chains')
+    @require_auth
+    def api_firewall_chains():
+        """获取iptables链信息"""
+        import subprocess
+        
+        try:
+            chains = {}
+            for chain_name in ['FIREWALL_BANS', 'FIREWALL_RATE_LIMIT', 'FIREWALL_PORT_RULES']:
+                result = subprocess.run(
+                    ['iptables', '-L', chain_name, '-n', '-v', '--line-numbers'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    chains[chain_name.lower() + '_chain'] = result.stdout
+                else:
+                    chains[chain_name.lower() + '_chain'] = f'链 {chain_name} 不存在或无法访问'
+            
+            return jsonify(chains)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     return app
 
