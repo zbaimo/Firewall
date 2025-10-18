@@ -104,41 +104,122 @@ class FirewallSystem:
             custom_count = session.query(ScoringRule).count()
             
             if threat_count == 0:
-                # 初始化默认威胁检测规则
+                # 初始化默认威胁检测规则（增强版）
                 default_threats = [
-                    {'category': 'sql_injection', 'name': 'SQL注入检测', 'enabled': True,
-                     'patterns': json.dumps(["union.*select", "'; --", "' or '1'='1"]),
-                     'threat_score': 50, 'description': '检测SQL注入攻击'},
-                    {'category': 'xss_attack', 'name': 'XSS攻击检测', 'enabled': True,
-                     'patterns': json.dumps(["<script", "javascript:", "onerror="]),
-                     'threat_score': 40, 'description': '检测XSS攻击'},
-                    {'category': 'rate_limit', 'name': '频率限制', 'enabled': True,
-                     'parameters': json.dumps({'window_seconds': 60, 'max_requests': 100}),
-                     'threat_score': 25, 'description': '检测高频访问'},
-                    {'category': 'scan_detection', 'name': '路径扫描', 'enabled': True,
-                     'parameters': json.dumps({'window_seconds': 300, 'max_404_count': 20}),
-                     'threat_score': 30, 'description': '检测404扫描'},
-                    {'category': 'sensitive_path', 'name': '敏感路径', 'enabled': True,
-                     'patterns': json.dumps(["/.env", "/.git", "/admin", "/phpmyadmin"]),
-                     'threat_score': 15, 'description': '检测敏感路径访问'},
-                    {'category': 'bad_user_agent', 'name': '恶意UA', 'enabled': True,
-                     'patterns': json.dumps(["masscan", "nmap", "nikto", "sqlmap"]),
-                     'threat_score': 20, 'description': '检测扫描工具'}
+                    # SQL注入检测
+                    {'category': 'sql_injection', 'name': 'SQL注入攻击', 'enabled': True,
+                     'patterns': json.dumps([
+                         "union.*select", "select.*from", "insert.*into", "delete.*from",
+                         "'; --", "' or '1'='1", "' or 1=1", "\\\"; DROP TABLE",
+                         "exec\\(", "script>", "\\\\x", "waitfor delay"
+                     ]),
+                     'threat_score': 60, 'description': '检测SQL注入攻击模式'},
+                    
+                    # XSS攻击
+                    {'category': 'xss_attack', 'name': 'XSS跨站脚本', 'enabled': True,
+                     'patterns': json.dumps([
+                         "<script", "</script>", "javascript:", "onerror=", "onload=",
+                         "eval\\(", "alert\\(", "document\\.cookie", "innerHTML"
+                     ]),
+                     'threat_score': 50, 'description': '检测XSS跨站脚本攻击'},
+                    
+                    # 命令注入
+                    {'category': 'command_injection', 'name': '命令注入攻击', 'enabled': True,
+                     'patterns': json.dumps([
+                         ";\\s*ls", ";\\s*cat", ";\\s*wget", ";\\s*curl", "&&", "\\|\\|",
+                         "\\$\\(", "`", "/etc/passwd", "/etc/shadow"
+                     ]),
+                     'threat_score': 70, 'description': '检测命令注入攻击'},
+                    
+                    # 路径遍历
+                    {'category': 'path_traversal', 'name': '路径遍历攻击', 'enabled': True,
+                     'patterns': json.dumps([
+                         "\\.\\./", "\\.\\.\\\\", "%2e%2e/", "%2e%2e%5c", "..%2f", "..%5c"
+                     ]),
+                     'threat_score': 45, 'description': '检测目录遍历攻击'},
+                    
+                    # 敏感文件访问
+                    {'category': 'sensitive_path', 'name': '敏感文件访问', 'enabled': True,
+                     'patterns': json.dumps([
+                         "/.env", "/.git", "/.svn", "/config.php", "/wp-config.php",
+                         "/admin", "/phpmyadmin", "/adminer", "/.ssh", "/backup"
+                     ]),
+                     'threat_score': 35, 'description': '访问敏感文件或目录'},
+                    
+                    # 扫描工具检测
+                    {'category': 'bad_user_agent', 'name': '扫描工具UA', 'enabled': True,
+                     'patterns': json.dumps([
+                         "masscan", "nmap", "nikto", "sqlmap", "burp", "acunetix",
+                         "w3af", "metasploit", "dirbuster", "gobuster", "wpscan",
+                         "zgrab", "shodan", "censys", "python-requests/", "go-http-client"
+                     ]),
+                     'threat_score': 40, 'description': '检测自动化扫描工具'},
+                    
+                    # 频率限制
+                    {'category': 'rate_limit', 'name': '高频访问限制', 'enabled': True,
+                     'parameters': json.dumps({'window_seconds': 60, 'max_requests': 120}),
+                     'threat_score': 30, 'description': '60秒内超过120次请求'},
+                    
+                    # 路径扫描
+                    {'category': 'scan_detection', 'name': '路径扫描检测', 'enabled': True,
+                     'parameters': json.dumps({'window_seconds': 300, 'max_404_count': 25}),
+                     'threat_score': 35, 'description': '5分钟内超过25次404'},
+                    
+                    # SSRF攻击
+                    {'category': 'ssrf', 'name': 'SSRF服务端请求伪造', 'enabled': True,
+                     'patterns': json.dumps([
+                         "localhost", "127\\.0\\.0\\.1", "0\\.0\\.0\\.0", "\\[::\\]",
+                         "169\\.254\\.", "192\\.168\\.", "10\\.", "172\\.16\\."
+                     ]),
+                     'threat_score': 55, 'description': '检测SSRF攻击'},
+                    
+                    # XXE攻击
+                    {'category': 'xxe', 'name': 'XXE外部实体注入', 'enabled': True,
+                     'patterns': json.dumps([
+                         "<!DOCTYPE", "<!ENTITY", "SYSTEM", "file://", "expect://"
+                     ]),
+                     'threat_score': 50, 'description': '检测XXE攻击'},
+                    
+                    # 文件上传攻击
+                    {'category': 'file_upload', 'name': '恶意文件上传', 'enabled': True,
+                     'patterns': json.dumps([
+                         "\\.php", "\\.jsp", "\\.asp", "\\.aspx", "\\.exe", "\\.sh",
+                         "\\.py", "\\.pl", "\\.rb", "\\.war", "\\.phtml"
+                     ]),
+                     'threat_score': 45, 'description': '检测可疑文件上传'},
+                    
+                    # Web Shell特征
+                    {'category': 'webshell', 'name': 'WebShell特征', 'enabled': True,
+                     'patterns': json.dumps([
+                         "c99", "r57", "b374k", "wso", "webshell", "phpspy",
+                         "eval\\(base64_decode", "assert\\("
+                     ]),
+                     'threat_score': 80, 'description': '检测WebShell特征'}
                 ]
                 
                 for rule_data in default_threats:
                     session.add(ThreatDetectionRule(**rule_data))
                 
                 session.commit()
-                print(f"✓ 已初始化 {len(default_threats)} 条默认威胁检测规则")
+                print(f"✓ 已初始化 {len(default_threats)} 条默认威胁检测规则（增强版）")
             
             if custom_count == 0:
-                # 初始化默认自定义规则
+                # 初始化默认自定义规则（增强版）
                 default_customs = [
                     {'name': '深夜管理员访问', 'enabled': True, 'rule_type': 'time',
                      'conditions': json.dumps({'time_range': '02:00-05:00', 'path_contains': '/admin'}),
                      'score': 30, 'action': 'score', 'priority': 100,
-                     'description': '检测凌晨2-5点的管理后台访问'}
+                     'description': '凌晨2-5点访问管理后台'},
+                    
+                    {'name': '异常国家访问', 'enabled': True, 'rule_type': 'geo',
+                     'conditions': json.dumps({'countries_not_in': ['CN', 'HK', 'TW', 'MO']}),
+                     'score': 20, 'action': 'score', 'priority': 90,
+                     'description': '非中国大陆/港澳台地区访问'},
+                    
+                    {'name': '高危端口扫描', 'enabled': True, 'rule_type': 'pattern',
+                     'conditions': json.dumps({'path_regex': ':\\d{1,5}'}),
+                     'score': 25, 'action': 'score', 'priority': 85,
+                     'description': '尝试扫描端口的行为'}
                 ]
                 
                 for rule_data in default_customs:

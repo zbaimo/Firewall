@@ -265,32 +265,6 @@
             </div>
         </div>
         
-        <!-- API密钥 -->
-        <div class="section">
-            <h2 class="section-title">🔑 API密钥</h2>
-            
-            <div class="info-box">
-                <strong>ℹ️ API密钥用途</strong><br>
-                可以使用API密钥通过程序调用系统接口，实现自动化管理。
-            </div>
-            
-            <div id="api-key-view">
-                <p style="margin-bottom:1rem;color:#718096;">还未生成API密钥</p>
-                <button class="btn btn-primary" onclick="generateApiKey()">
-                    生成API密钥
-                </button>
-            </div>
-            
-            <div id="api-key-generated" class="hidden">
-                <p style="margin-bottom:0.5rem;font-weight:500;">您的API密钥:</p>
-                <div class="api-key-display" id="api-key-text">-</div>
-                <button class="copy-btn" onclick="copyApiKey()">📋 复制</button>
-                
-                <div style="margin-top:1rem;padding:0.75rem;background:#fff7ed;border-radius:6px;font-size:0.875rem;color:#9a3412;">
-                    ⚠️ 请妥善保管API密钥，它只会显示一次！
-                </div>
-            </div>
-        </div>
     </div>
     
     <script>
@@ -412,30 +386,6 @@
             });
         }
         
-        // 生成API密钥
-        function generateApiKey() {
-            if (!confirm('确定要生成新的API密钥吗？\n旧密钥将失效。')) return;
-            
-            fetch('/api/auth/api-key/generate', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'}
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('api-key-text').textContent = data.api_key;
-                    document.getElementById('api-key-view').classList.add('hidden');
-                    document.getElementById('api-key-generated').classList.remove('hidden');
-                }
-            });
-        }
-        
-        function copyApiKey() {
-            const apiKey = document.getElementById('api-key-text').textContent;
-            navigator.clipboard.writeText(apiKey).then(() => {
-                alert('✓ 已复制到剪贴板');
-            });
-        }
     </script>
 </body>
 </html>

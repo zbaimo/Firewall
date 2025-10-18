@@ -318,10 +318,6 @@ class User(Base):
     
     # 创建时间
     created_at = Column(DateTime, default=datetime.now)
-    
-    # API密钥
-    api_key = Column(String(64), nullable=True, unique=True)
-    api_key_created_at = Column(DateTime, nullable=True)
 
 
 class Session(Base):

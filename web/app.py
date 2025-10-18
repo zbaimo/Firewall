@@ -214,29 +214,38 @@ def create_app(config, db, firewall, threat_detector, identity_chain_mgr,
         
         return jsonify({'success': success, 'message': message})
     
-    @app.route('/api/auth/api-key/generate', methods=['POST'])
+    # 端口扫描API
+    @app.route('/api/ports/scan', methods=['GET'])
     @require_auth
-    def generate_api_key():
-        """生成API密钥"""
-        import secrets
-        from models.database import User
-        
-        username = flask_session.get('username')
-        api_key = secrets.token_urlsafe(32)
-        
-        session = db.get_session()
+    def scan_ports():
+        """扫描服务器端口"""
         try:
-            user = session.query(User).filter(User.username == username).first()
-            if user:
-                user.api_key = api_key
-                user.api_key_created_at = datetime.now()
-                session.commit()
-                
-                return jsonify({'success': True, 'api_key': api_key})
-        finally:
-            session.close()
-        
-        return jsonify({'success': False}), 500
+            from core.port_scanner import PortScanner
+            scanner = PortScanner(db, config)
+            
+            # 扫描监听端口
+            ports = scanner.get_listening_ports()
+            
+            # 分类
+            categorized = scanner.categorize_ports(ports)
+            
+            return jsonify({
+                'success': True,
+                'total': len(ports),
+                'ports': ports,
+                'categorized': {
+                    'external': categorized['external'],
+                    'internal': categorized['internal'],
+                    'web': categorized['web'],
+                    'database': categorized['database'],
+                    'remote': categorized['remote'],
+                    'email': categorized['email'],
+                    'dns': categorized['dns'],
+                    'other': categorized['other']
+                }
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
     
     @app.route('/')
     @require_auth
