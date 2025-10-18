@@ -672,5 +672,325 @@ def create_app(config, db, firewall, threat_detector, identity_chain_mgr,
         """端口管理页面"""
         return render_template('ports.html')
     
+    # ==================== 规则管理 API ====================
+    
+    @app.route('/rules')
+    @require_auth
+    def rules_page():
+        """规则管理页面"""
+        return render_template('rules.html', username=flask_session.get('username'))
+    
+    @app.route('/api/rules/threat')
+    @require_auth
+    def get_threat_rules():
+        """获取所有威胁检测规则"""
+        from models.database import ThreatDetectionRule
+        
+        session = db.get_session()
+        try:
+            rules = session.query(ThreatDetectionRule).order_by(ThreatDetectionRule.category).all()
+            return jsonify({
+                'success': True,
+                'rules': [{
+                    'id': r.id,
+                    'category': r.category,
+                    'name': r.name,
+                    'description': r.description,
+                    'enabled': r.enabled,
+                    'patterns': r.patterns,
+                    'parameters': r.parameters,
+                    'threat_score': r.threat_score,
+                    'created_at': r.created_at.isoformat() if r.created_at else None,
+                    'updated_at': r.updated_at.isoformat() if r.updated_at else None
+                } for r in rules]
+            })
+        finally:
+            session.close()
+    
+    @app.route('/api/rules/threat/<int:rule_id>')
+    @require_auth
+    def get_threat_rule(rule_id):
+        """获取单个威胁检测规则"""
+        from models.database import ThreatDetectionRule
+        
+        session = db.get_session()
+        try:
+            rule = session.query(ThreatDetectionRule).filter(ThreatDetectionRule.id == rule_id).first()
+            if not rule:
+                return jsonify({'error': '规则不存在'}), 404
+            
+            return jsonify({
+                'id': rule.id,
+                'category': rule.category,
+                'name': rule.name,
+                'description': rule.description,
+                'enabled': rule.enabled,
+                'patterns': rule.patterns,
+                'parameters': rule.parameters,
+                'threat_score': rule.threat_score
+            })
+        finally:
+            session.close()
+    
+    @app.route('/api/rules/threat', methods=['POST'])
+    @require_auth
+    def create_threat_rule():
+        """创建威胁检测规则"""
+        from models.database import ThreatDetectionRule
+        
+        data = request.json
+        session = db.get_session()
+        try:
+            rule = ThreatDetectionRule(
+                category=data.get('category'),
+                name=data.get('name'),
+                description=data.get('description'),
+                enabled=data.get('enabled', True),
+                patterns=data.get('patterns'),
+                parameters=data.get('parameters'),
+                threat_score=data.get('threat_score', 0)
+            )
+            session.add(rule)
+            session.commit()
+            
+            return jsonify({'success': True, 'id': rule.id})
+        except Exception as e:
+            session.rollback()
+            return jsonify({'error': str(e)}), 400
+        finally:
+            session.close()
+    
+    @app.route('/api/rules/threat/<int:rule_id>', methods=['PUT'])
+    @require_auth
+    def update_threat_rule(rule_id):
+        """更新威胁检测规则"""
+        from models.database import ThreatDetectionRule
+        
+        data = request.json
+        session = db.get_session()
+        try:
+            rule = session.query(ThreatDetectionRule).filter(ThreatDetectionRule.id == rule_id).first()
+            if not rule:
+                return jsonify({'error': '规则不存在'}), 404
+            
+            rule.category = data.get('category', rule.category)
+            rule.name = data.get('name', rule.name)
+            rule.description = data.get('description', rule.description)
+            rule.enabled = data.get('enabled', rule.enabled)
+            rule.patterns = data.get('patterns', rule.patterns)
+            rule.parameters = data.get('parameters', rule.parameters)
+            rule.threat_score = data.get('threat_score', rule.threat_score)
+            rule.updated_at = datetime.now()
+            
+            session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            session.rollback()
+            return jsonify({'error': str(e)}), 400
+        finally:
+            session.close()
+    
+    @app.route('/api/rules/threat/<int:rule_id>', methods=['DELETE'])
+    @require_auth
+    def delete_threat_rule(rule_id):
+        """删除威胁检测规则"""
+        from models.database import ThreatDetectionRule
+        
+        session = db.get_session()
+        try:
+            rule = session.query(ThreatDetectionRule).filter(ThreatDetectionRule.id == rule_id).first()
+            if not rule:
+                return jsonify({'error': '规则不存在'}), 404
+            
+            session.delete(rule)
+            session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            session.rollback()
+            return jsonify({'error': str(e)}), 400
+        finally:
+            session.close()
+    
+    @app.route('/api/rules/threat/<int:rule_id>/toggle', methods=['POST'])
+    @require_auth
+    def toggle_threat_rule(rule_id):
+        """切换威胁检测规则启用状态"""
+        from models.database import ThreatDetectionRule
+        
+        data = request.json
+        session = db.get_session()
+        try:
+            rule = session.query(ThreatDetectionRule).filter(ThreatDetectionRule.id == rule_id).first()
+            if not rule:
+                return jsonify({'error': '规则不存在'}), 404
+            
+            rule.enabled = data.get('enabled', not rule.enabled)
+            rule.updated_at = datetime.now()
+            session.commit()
+            return jsonify({'success': True, 'enabled': rule.enabled})
+        except Exception as e:
+            session.rollback()
+            return jsonify({'error': str(e)}), 400
+        finally:
+            session.close()
+    
+    # 自定义规则API
+    @app.route('/api/rules/custom')
+    @require_auth
+    def get_custom_rules():
+        """获取所有自定义规则"""
+        from models.database import ScoringRule
+        
+        session = db.get_session()
+        try:
+            rules = session.query(ScoringRule).order_by(ScoringRule.priority.desc()).all()
+            return jsonify({
+                'success': True,
+                'rules': [{
+                    'id': r.id,
+                    'name': r.name,
+                    'description': r.description,
+                    'enabled': r.enabled,
+                    'rule_type': r.rule_type,
+                    'conditions': r.conditions,
+                    'score': r.score,
+                    'action': r.action,
+                    'priority': r.priority,
+                    'created_at': r.created_at.isoformat() if r.created_at else None,
+                    'updated_at': r.updated_at.isoformat() if r.updated_at else None
+                } for r in rules]
+            })
+        finally:
+            session.close()
+    
+    @app.route('/api/rules/custom/<int:rule_id>')
+    @require_auth
+    def get_custom_rule(rule_id):
+        """获取单个自定义规则"""
+        from models.database import ScoringRule
+        
+        session = db.get_session()
+        try:
+            rule = session.query(ScoringRule).filter(ScoringRule.id == rule_id).first()
+            if not rule:
+                return jsonify({'error': '规则不存在'}), 404
+            
+            return jsonify({
+                'id': rule.id,
+                'name': rule.name,
+                'description': rule.description,
+                'enabled': rule.enabled,
+                'rule_type': rule.rule_type,
+                'conditions': rule.conditions,
+                'score': rule.score,
+                'action': rule.action,
+                'priority': rule.priority
+            })
+        finally:
+            session.close()
+    
+    @app.route('/api/rules/custom', methods=['POST'])
+    @require_auth
+    def create_custom_rule():
+        """创建自定义规则"""
+        from models.database import ScoringRule
+        
+        data = request.json
+        session = db.get_session()
+        try:
+            rule = ScoringRule(
+                name=data.get('name'),
+                description=data.get('description'),
+                enabled=data.get('enabled', True),
+                rule_type=data.get('rule_type'),
+                conditions=data.get('conditions'),
+                score=data.get('score', 0),
+                action=data.get('action', 'score'),
+                priority=data.get('priority', 100)
+            )
+            session.add(rule)
+            session.commit()
+            return jsonify({'success': True, 'id': rule.id})
+        except Exception as e:
+            session.rollback()
+            return jsonify({'error': str(e)}), 400
+        finally:
+            session.close()
+    
+    @app.route('/api/rules/custom/<int:rule_id>', methods=['PUT'])
+    @require_auth
+    def update_custom_rule(rule_id):
+        """更新自定义规则"""
+        from models.database import ScoringRule
+        
+        data = request.json
+        session = db.get_session()
+        try:
+            rule = session.query(ScoringRule).filter(ScoringRule.id == rule_id).first()
+            if not rule:
+                return jsonify({'error': '规则不存在'}), 404
+            
+            rule.name = data.get('name', rule.name)
+            rule.description = data.get('description', rule.description)
+            rule.enabled = data.get('enabled', rule.enabled)
+            rule.rule_type = data.get('rule_type', rule.rule_type)
+            rule.conditions = data.get('conditions', rule.conditions)
+            rule.score = data.get('score', rule.score)
+            rule.action = data.get('action', rule.action)
+            rule.priority = data.get('priority', rule.priority)
+            rule.updated_at = datetime.now()
+            
+            session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            session.rollback()
+            return jsonify({'error': str(e)}), 400
+        finally:
+            session.close()
+    
+    @app.route('/api/rules/custom/<int:rule_id>', methods=['DELETE'])
+    @require_auth
+    def delete_custom_rule(rule_id):
+        """删除自定义规则"""
+        from models.database import ScoringRule
+        
+        session = db.get_session()
+        try:
+            rule = session.query(ScoringRule).filter(ScoringRule.id == rule_id).first()
+            if not rule:
+                return jsonify({'error': '规则不存在'}), 404
+            
+            session.delete(rule)
+            session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            session.rollback()
+            return jsonify({'error': str(e)}), 400
+        finally:
+            session.close()
+    
+    @app.route('/api/rules/custom/<int:rule_id>/toggle', methods=['POST'])
+    @require_auth
+    def toggle_custom_rule(rule_id):
+        """切换自定义规则启用状态"""
+        from models.database import ScoringRule
+        
+        data = request.json
+        session = db.get_session()
+        try:
+            rule = session.query(ScoringRule).filter(ScoringRule.id == rule_id).first()
+            if not rule:
+                return jsonify({'error': '规则不存在'}), 404
+            
+            rule.enabled = data.get('enabled', not rule.enabled)
+            rule.updated_at = datetime.now()
+            session.commit()
+            return jsonify({'success': True, 'enabled': rule.enabled})
+        except Exception as e:
+            session.rollback()
+            return jsonify({'error': str(e)}), 400
+        finally:
+            session.close()
+    
     return app
 

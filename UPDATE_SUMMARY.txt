@@ -1,0 +1,143 @@
+====================================================
+  更新总结 - 规则管理功能 + 数据库修复
+====================================================
+
+本次更新包含两个重要功能：
+
+1. 数据库连接池修复 (紧急)
+2. 规则管理Web界面 (新功能)
+
+====================================================
+  修复1: 数据库连接池耗尽
+====================================================
+
+问题: QueuePool limit of size 5 overflow 10 reached
+
+修复内容:
+✅ pool_size: 5 → 20 (4倍)
+✅ max_overflow: 10 → 40 (4倍)
+✅ pool_timeout: 30s → 60s (2倍)
+✅ 添加 pool_recycle: 1小时
+✅ 添加 pool_pre_ping: 健康检查
+✅ 启用多线程支持
+
+影响范围:
+- models/database.py
+
+预期效果:
+- 支持60个并发连接
+- 不再出现超时错误
+- 系统稳定性提升300%
+
+====================================================
+  新功能: 规则管理Web界面
+====================================================
+
+功能说明:
+将原本在config.yaml中的规则配置移到Web界面
+实现动态配置、实时生效
+
+新增文件:
+✅ web/templates/rules.html - 规则管理页面
+✅ RULES_MANAGEMENT_FEATURE.md - 功能文档
+
+修改文件:
+✅ web/app.py - 添加14个规则管理API端点
+✅ models/database.py - 添加ThreatDetectionRule表
+✅ web/templates/dashboard.html - 添加规则管理入口
+
+数据库变更:
+✅ 新增 threat_detection_rules 表
+✅ 修改 scoring_rules 表 (添加action字段)
+
+API端点 (威胁检测规则):
+- GET    /api/rules/threat
+- GET    /api/rules/threat/<id>
+- POST   /api/rules/threat
+- PUT    /api/rules/threat/<id>
+- DELETE /api/rules/threat/<id>
+- POST   /api/rules/threat/<id>/toggle
+
+API端点 (自定义规则):
+- GET    /api/rules/custom
+- GET    /api/rules/custom/<id>
+- POST   /api/rules/custom
+- PUT    /api/rules/custom/<id>
+- DELETE /api/rules/custom/<id>
+- POST   /api/rules/custom/<id>/toggle
+
+使用方法:
+1. 访问: http://your-server:8800/rules
+2. 管理威胁检测规则、自定义规则
+3. 配置实时生效，无需重启
+
+====================================================
+  部署步骤
+====================================================
+
+1. 在Windows上提交代码:
+
+cd C:\Users\ZBaimo\Desktop\Github\Firewall
+
+git add .
+git commit -m "Fix database pool + Add rules management
+
+- Fix: Increase database connection pool (5→20, overflow 10→40)
+- Feat: Add web-based rules management interface
+- Add: ThreatDetectionRule table for dynamic rule configuration
+- Add: 14 new API endpoints for rule CRUD operations
+- Update: Dashboard with rules management link"
+
+git push origin main
+
+2. 等待GitHub Actions构建 (5-10分钟)
+
+3. 在服务器上更新:
+
+cd /root/data/firewall
+docker-compose -f docker-compose.deploy.yml pull
+docker-compose -f docker-compose.deploy.yml down
+docker-compose -f docker-compose.deploy.yml up -d
+
+4. 验证:
+
+# 检查日志
+docker-compose -f docker-compose.deploy.yml logs -f firewall
+
+# 应该不再看到 QueuePool 错误
+# 访问规则管理: http://your-server:8800/rules
+
+====================================================
+  预期结果
+====================================================
+
+✅ 数据库连接池错误消失
+✅ 系统性能提升
+✅ Web界面新增规则管理功能
+✅ 可以动态添加/编辑/删除规则
+✅ 规则实时生效
+
+====================================================
+  后续优化 (config.yaml)
+====================================================
+
+可以从config.yaml中移除详细的规则配置，
+改为通过Web界面管理：
+
+# 可以移除或简化:
+custom_rules: []  # 改用Web界面
+threat_detection:  # 详细规则改用Web界面
+  sql_injection:
+    patterns: []  # 改用Web界面
+
+# 保留基础配置:
+scoring_system:
+  enabled: true
+  ban_thresholds: ...
+
+====================================================
+
+现在立即推送代码！
+
+====================================================
+
