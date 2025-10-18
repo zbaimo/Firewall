@@ -1,0 +1,121 @@
+====================================================
+  Server Quick Commands
+====================================================
+
+On your server, execute these commands:
+
+====================================================
+  View Logs
+====================================================
+
+# View firewall logs (use container name)
+docker logs nginx-firewall
+
+# Last 50 lines
+docker logs nginx-firewall | tail -50
+
+# Real-time logs
+docker logs -f nginx-firewall
+
+# Check for rule initialization
+docker logs nginx-firewall | grep "初始化"
+
+# Check for startup success
+docker logs nginx-firewall | grep "系统已启动"
+
+====================================================
+  Check Container Status
+====================================================
+
+# List running containers
+docker ps
+
+# Check specific containers
+docker ps | grep firewall
+docker ps | grep redis
+
+# Detailed status
+docker inspect nginx-firewall | grep -i status
+
+====================================================
+  Verify iptables Chains
+====================================================
+
+# Check FIREWALL_BANS chain
+docker exec nginx-firewall iptables -L FIREWALL_BANS -n
+
+# Check RATE_LIMIT chain
+docker exec nginx-firewall iptables -L FIREWALL_RATE_LIMIT -n
+
+# Check PORT_RULES chain
+docker exec nginx-firewall iptables -L FIREWALL_PORT_RULES -n
+
+# View all chains
+docker exec nginx-firewall iptables -L -n | grep FIREWALL
+
+====================================================
+  Test CLI Tools
+====================================================
+
+# Health check
+docker exec nginx-firewall python tools/firewall_cli.py health
+
+# Statistics
+docker exec nginx-firewall python tools/firewall_cli.py stats
+
+# List bans
+docker exec nginx-firewall python tools/firewall_cli.py list
+
+# Interactive mode
+docker exec nginx-firewall python tools/firewall_cli.py interactive
+
+====================================================
+  Web Access
+====================================================
+
+# Find the web port (should be 8080 or 8800)
+docker logs nginx-firewall | grep "管理后台"
+
+# Access URLs:
+http://YOUR_SERVER_IP:8080
+http://YOUR_SERVER_IP:8080/firewall
+http://YOUR_SERVER_IP:8080/rules
+http://YOUR_SERVER_IP:8080/ports
+
+====================================================
+  Container Management
+====================================================
+
+# Restart firewall
+docker restart nginx-firewall
+
+# Stop
+docker stop nginx-firewall firewall-redis
+
+# Start
+docker start nginx-firewall firewall-redis
+
+# View resource usage
+docker stats nginx-firewall firewall-redis
+
+====================================================
+  Database Check
+====================================================
+
+# Enter container
+docker exec -it nginx-firewall bash
+
+# Inside container:
+ls -la /data/firewall.db
+sqlite3 /data/firewall.db "SELECT COUNT(*) FROM threat_detection_rules;"
+sqlite3 /data/firewall.db "SELECT COUNT(*) FROM scoring_rules;"
+
+# Exit
+exit
+
+====================================================
+
+Use container names instead of IDs!
+
+====================================================
+

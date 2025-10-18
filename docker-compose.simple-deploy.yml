@@ -1,0 +1,88 @@
+# ===================================================================
+# Nginx智能防火墙系统 - 简化部署配置
+# 避免数据卷冲突，使用默认卷配置
+# ===================================================================
+
+services:
+  firewall:
+    image: zbaimo/nginx-firewall:latest
+    container_name: nginx-firewall
+    restart: always
+    network_mode: "host"
+    
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - /root/data/Nginx:/var/log/nginx:ro
+      - firewall-data:/data
+      - ./logs:/app/logs
+      - ./exports:/app/exports
+    
+    environment:
+      - TZ=Asia/Shanghai
+      - REDIS_HOST=localhost
+      - REDIS_PORT=6379
+      - PYTHONUNBUFFERED=1
+    
+    privileged: true
+    
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/api/system/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: firewall-redis
+    restart: always
+    network_mode: "host"
+    
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --bind 127.0.0.1
+    
+    volumes:
+      - redis-data:/data
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  firewall-data:
+  redis-data:
+
+# ===================================================================
+# 使用说明
+# ===================================================================
+#
+# 启动: docker compose -f docker-compose.simple-deploy.yml up -d
+# 日志: docker compose -f docker-compose.simple-deploy.yml logs -f
+# 停止: docker compose -f docker-compose.simple-deploy.yml down
+#
+# 访问: http://localhost:8080
+# 登录: admin / admin
+#
+# ===================================================================
+
