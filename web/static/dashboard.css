@@ -1,0 +1,57 @@
+/* Dashboard Additional Styles */
+
+/* 如果需要额外的样式，可以在这里添加 */
+
+/* 示例：自定义仪表板样式 */
+.dashboard-card {
+    transition: transform 0.2s;
+}
+
+.dashboard-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* 统计卡片动画 */
+.stat-card {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 威胁列表样式 */
+.threat-item {
+    border-left: 3px solid #dc3545;
+    padding-left: 10px;
+    margin-bottom: 10px;
+}
+
+.threat-item.high {
+    border-left-color: #dc3545;
+}
+
+.threat-item.medium {
+    border-left-color: #ffc107;
+}
+
+.threat-item.low {
+    border-left-color: #17a2b8;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .dashboard-card {
+        margin-bottom: 15px;
+    }
+}
+
+

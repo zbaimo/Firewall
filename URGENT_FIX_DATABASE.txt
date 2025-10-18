@@ -1,0 +1,96 @@
+====================================================
+  URGENT: Database Connection Pool Fix
+====================================================
+
+Problem: Database connection pool exhausted
+Error: QueuePool limit of size 5 overflow 10 reached
+
+====================================================
+  Quick Fix (On Your Windows Machine)
+====================================================
+
+1. File Already Modified:
+   models/database.py - Connection pool increased
+
+2. Push to GitHub:
+
+cd C:\Users\ZBaimo\Desktop\Github\Firewall
+git add models/database.py FIX_DATABASE_POOL.md
+git commit -m "Fix: Increase database connection pool to handle high concurrency"
+git push origin main
+
+3. Wait for GitHub Actions:
+   - Go to: https://github.com/zbaimo/Firewall/actions
+   - Wait 5-10 minutes for build to complete
+
+4. Update on Server:
+
+# SSH to your server
+ssh root@your-server
+
+# Update container
+cd /root/data/firewall
+docker-compose -f docker-compose.deploy.yml pull
+docker-compose -f docker-compose.deploy.yml down
+docker-compose -f docker-compose.deploy.yml up -d
+
+# Check logs
+docker-compose -f docker-compose.deploy.yml logs -f firewall
+
+====================================================
+  What Was Changed
+====================================================
+
+Connection Pool Settings:
+  pool_size: 5 → 20 (4x increase)
+  max_overflow: 10 → 40 (4x increase)
+  pool_timeout: 30s → 60s (2x increase)
+  
+New Features:
+  + pool_recycle: 3600s (1 hour)
+  + pool_pre_ping: True (health check)
+  + check_same_thread: False (multi-thread)
+
+Total Connections: 15 → 60 (4x capacity!)
+
+====================================================
+  Expected Results After Fix
+====================================================
+
+Before:
+  ❌ QueuePool limit errors every 30 seconds
+  ❌ System can't process logs
+  ❌ Web interface slow/unresponsive
+
+After:
+  ✅ No more pool exhaustion errors
+  ✅ Handles 60 concurrent connections
+  ✅ Web interface fast and responsive
+  ✅ Logs processed smoothly
+
+====================================================
+  Verification Commands
+====================================================
+
+# Check no more errors
+docker-compose -f docker-compose.deploy.yml logs firewall | grep -i "queuepool"
+
+# Should be empty (no pool errors)
+
+# Monitor system
+docker stats nginx-firewall
+
+# Check web interface
+curl http://localhost:8800/api/system/health
+
+====================================================
+
+EXECUTE NOW:
+1. git add .
+2. git commit -m "Fix database pool"
+3. git push origin main
+4. Wait for GitHub Actions
+5. Pull and restart on server
+
+====================================================
+

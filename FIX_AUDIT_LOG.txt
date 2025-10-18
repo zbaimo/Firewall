@@ -1,0 +1,73 @@
+====================================================
+  Fixed Audit Log Issue
+====================================================
+
+Problem:
+  Error: [Errno 21] Is a directory: 'audit.log'
+  
+Cause:
+  Docker creates 'audit.log' as a directory when the
+  file doesn't exist locally before mounting.
+
+Solution:
+  1. Removed audit.log file mount from docker-compose
+  2. Changed audit log path to logs/audit.log
+  3. Now audit.log will be created inside the logs
+     directory which is properly mounted
+
+====================================================
+  Changes Made
+====================================================
+
+1. docker-compose.deploy.yml:
+   - Removed: ./audit.log:/app/audit.log
+   - Kept: ./logs:/app/logs (audit.log will be here)
+
+2. config.yaml:
+   - Changed: file: "audit.log"
+   - To: file: "logs/audit.log"
+
+====================================================
+  Next Steps
+====================================================
+
+1. On your server, run:
+
+   cd /root/data/firewall
+   
+   # Remove the old audit.log directory
+   rm -rf audit.log
+   
+   # Create logs directory if not exists
+   mkdir -p logs
+   
+   # Stop containers
+   docker-compose -f docker-compose.deploy.yml down
+   
+   # Pull latest changes (after you push to GitHub)
+   # Or update config.yaml manually on server
+   
+   # Restart
+   docker-compose -f docker-compose.deploy.yml up -d
+
+====================================================
+  File Locations After Fix
+====================================================
+
+Host (your server):
+  /root/data/firewall/logs/audit.log
+
+Container:
+  /app/logs/audit.log
+
+Mounted as:
+  - ./logs:/app/logs
+
+====================================================
+
+The audit log will now be created inside the logs
+directory and will work properly!
+
+====================================================
+
+

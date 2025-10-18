@@ -1,0 +1,216 @@
+====================================================
+  常用管理命令
+====================================================
+
+系统已成功启动！访问: http://您的服务器IP:8800
+
+====================================================
+  Docker Compose 命令
+====================================================
+
+# 查看服务状态
+docker-compose -f docker-compose.deploy.yml ps
+
+# 查看日志（实时）
+docker-compose -f docker-compose.deploy.yml logs -f
+
+# 只看防火墙日志
+docker-compose -f docker-compose.deploy.yml logs -f firewall
+
+# 只看Redis日志
+docker-compose -f docker-compose.deploy.yml logs -f redis
+
+# 重启服务
+docker-compose -f docker-compose.deploy.yml restart
+
+# 停止服务
+docker-compose -f docker-compose.deploy.yml down
+
+# 启动服务
+docker-compose -f docker-compose.deploy.yml up -d
+
+# 更新镜像
+docker-compose -f docker-compose.deploy.yml pull
+docker-compose -f docker-compose.deploy.yml up -d
+
+====================================================
+  日志查看
+====================================================
+
+# 审计日志
+tail -f logs/audit.log
+
+# 系统日志
+tail -f logs/firewall.log
+
+# 导出记录
+ls -la exports/
+
+# 容器日志（最近100行）
+docker logs nginx-firewall --tail 100
+
+# 容器日志（实时）
+docker logs -f nginx-firewall
+
+====================================================
+  系统监控
+====================================================
+
+# 资源使用
+docker stats nginx-firewall firewall-redis
+
+# 进程状态
+docker top nginx-firewall
+
+# 磁盘使用
+du -sh logs/ exports/ data/
+
+# 端口监听
+netstat -tunlp | grep 8800
+
+# Redis连接
+docker exec -it firewall-redis redis-cli ping
+
+====================================================
+  防火墙规则
+====================================================
+
+# 查看iptables规则
+iptables -L -n | grep FIREWALL
+
+# 查看封禁的IP
+iptables -L -n | grep DROP
+
+# 清空防火墙规则（危险！）
+# iptables -F
+
+# 允许特定IP访问8800端口
+iptables -A INPUT -s YOUR_IP -p tcp --dport 8800 -j ACCEPT
+
+====================================================
+  备份和恢复
+====================================================
+
+# 备份数据库
+docker exec nginx-firewall sqlite3 /data/firewall.db .dump > backup.sql
+
+# 备份配置
+tar czf backup_$(date +%Y%m%d).tar.gz config.yaml logs/ exports/
+
+# 恢复数据库
+docker exec -i nginx-firewall sqlite3 /data/firewall.db < backup.sql
+
+====================================================
+  Web管理界面
+====================================================
+
+访问地址: http://YOUR_SERVER_IP:8800
+
+默认登录:
+  用户名: admin
+  密码: admin
+
+首次登录后会强制修改密码！
+
+主要功能:
+  - 实时监控仪表板
+  - IP黑名单管理
+  - 威胁记录查看
+  - 端口管理
+  - 系统设置
+  - 2FA设置
+
+====================================================
+  故障排查
+====================================================
+
+# 检查容器是否运行
+docker ps | grep firewall
+
+# 查看容器详情
+docker inspect nginx-firewall
+
+# 进入容器调试
+docker exec -it nginx-firewall bash
+
+# 测试Redis连接
+docker exec -it nginx-firewall redis-cli -h localhost ping
+
+# 检查配置文件
+docker exec nginx-firewall cat /app/config.yaml
+
+# 检查Nginx日志是否可读
+docker exec nginx-firewall ls -la /var/log/nginx/logs/
+
+# 测试API端点
+curl http://localhost:8800/api/system/health
+
+====================================================
+  性能优化
+====================================================
+
+# 查看Redis信息
+docker exec firewall-redis redis-cli info
+
+# 清理Redis缓存
+docker exec firewall-redis redis-cli FLUSHALL
+
+# 清理旧日志
+find logs/ -name "*.log" -mtime +7 -delete
+
+# 清理旧导出文件
+find exports/ -mtime +30 -delete
+
+# 优化数据库
+docker exec nginx-firewall sqlite3 /data/firewall.db "VACUUM;"
+
+====================================================
+  更新系统
+====================================================
+
+# 拉取最新镜像
+docker pull zbaimo/nginx-firewall:latest
+
+# 备份数据
+tar czf backup_$(date +%Y%m%d).tar.gz logs/ exports/ config.yaml
+
+# 停止并删除旧容器
+docker-compose -f docker-compose.deploy.yml down
+
+# 启动新容器
+docker-compose -f docker-compose.deploy.yml up -d
+
+# 验证
+docker-compose -f docker-compose.deploy.yml logs -f
+
+====================================================
+  安全建议
+====================================================
+
+1. 立即修改默认密码
+   - 登录后台 → 设置 → 修改密码
+
+2. 启用2FA
+   - 设置 → 两步验证
+
+3. 配置防火墙
+   ufw allow 22/tcp
+   ufw allow 8800/tcp
+   ufw enable
+
+4. 定期备份
+   - 设置定时任务备份数据
+
+5. 监控日志
+   - 定期检查 logs/audit.log
+   - 查看威胁记录
+
+====================================================
+
+系统运行正常！开始使用吧！ 🚀
+
+访问: http://YOUR_SERVER_IP:8800
+
+====================================================
+
+

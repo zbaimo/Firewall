@@ -1,0 +1,98 @@
+====================================================
+  Configuration Fixed - Ready to Start
+====================================================
+
+Fixed Issues:
+  - Removed obsolete 'version' declaration
+  - Fixed network_mode and networks conflict
+  - Changed Redis to use host network mode
+  - Redis now binds to 127.0.0.1 only (more secure)
+
+====================================================
+  Start Command
+====================================================
+
+In your project directory, run:
+
+cd /root/data/firewall
+docker-compose -f docker-compose.deploy.yml up -d
+
+====================================================
+  Check Service Status
+====================================================
+
+# View status
+docker-compose -f docker-compose.deploy.yml ps
+
+# View logs
+docker-compose -f docker-compose.deploy.yml logs -f
+
+# Firewall logs only
+docker-compose -f docker-compose.deploy.yml logs -f firewall
+
+# Redis logs only
+docker-compose -f docker-compose.deploy.yml logs -f redis
+
+====================================================
+  Access Web Interface
+====================================================
+
+Using host network mode, service runs on host network
+
+Access URL:
+  http://YOUR_HOST_IP:8080
+  or
+  http://localhost:8080
+
+Default Login:
+  Username: admin
+  Password: admin
+
+First login will force password change
+
+====================================================
+  Important Notes
+====================================================
+
+1. Host network mode advantages:
+   - Can directly operate host iptables
+   - Best performance (no network translation)
+   - Ports directly exposed on host
+
+2. Ports:
+   - Web dashboard: 8080
+   - Redis: 127.0.0.1:6379 (localhost only)
+
+3. Firewall rules:
+   If host has firewall, open port 8080:
+   
+   ufw allow 8080/tcp
+   or
+   iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
+
+====================================================
+  Troubleshooting
+====================================================
+
+If startup fails:
+
+1. Check if ports are in use:
+   netstat -tunlp | grep 8080
+   netstat -tunlp | grep 6379
+
+2. Check config file:
+   ls -la config.yaml
+   
+3. Check log directory:
+   ls -la /root/data/Nginx
+
+4. View detailed errors:
+   docker-compose -f docker-compose.deploy.yml logs
+
+====================================================
+
+Now run: docker-compose -f docker-compose.deploy.yml up -d
+
+====================================================
+
+

@@ -353,23 +353,59 @@ class Database:
         
         if db_config.get('type') == 'sqlite':
             db_path = db_config.get('path', 'firewall.db')
-            self.engine = create_engine(f'sqlite:///{db_path}', echo=False)
+            # SQLite连接池配置（优化高并发）
+            self.engine = create_engine(
+                f'sqlite:///{db_path}',
+                echo=False,
+                # 连接池配置
+                pool_size=20,              # 连接池大小（从5增加到20）
+                max_overflow=40,           # 最大溢出连接数（从10增加到40）
+                pool_timeout=60,           # 连接超时时间（从30增加到60秒）
+                pool_recycle=3600,         # 连接回收时间（1小时）
+                pool_pre_ping=True,        # 使用连接前先ping测试
+                # SQLite特定配置
+                connect_args={
+                    'check_same_thread': False,  # 允许多线程
+                    'timeout': 30                # 数据库锁超时
+                }
+            )
         elif db_config.get('type') == 'mysql':
             conn_str = (f"mysql+pymysql://{db_config['user']}:{db_config['password']}"
                        f"@{db_config['host']}:{db_config['port']}/{db_config['database']}")
-            self.engine = create_engine(conn_str, echo=False)
+            self.engine = create_engine(
+                conn_str,
+                echo=False,
+                pool_size=20,
+                max_overflow=40,
+                pool_timeout=60,
+                pool_recycle=3600,
+                pool_pre_ping=True
+            )
         elif db_config.get('type') == 'postgresql':
             conn_str = (f"postgresql://{db_config['user']}:{db_config['password']}"
                        f"@{db_config['host']}:{db_config['port']}/{db_config['database']}")
-            self.engine = create_engine(conn_str, echo=False)
+            self.engine = create_engine(
+                conn_str,
+                echo=False,
+                pool_size=20,
+                max_overflow=40,
+                pool_timeout=60,
+                pool_recycle=3600,
+                pool_pre_ping=True
+            )
         else:
             raise ValueError(f"Unsupported database type: {db_config.get('type')}")
         
         # 创建所有表
         Base.metadata.create_all(self.engine)
         
-        # 创建会话工厂
-        self.Session = sessionmaker(bind=self.engine)
+        # 创建会话工厂（配置自动提交和过期）
+        self.Session = sessionmaker(
+            bind=self.engine,
+            autoflush=True,
+            autocommit=False,
+            expire_on_commit=False  # 提交后对象不过期，减少查询
+        )
     
     def get_session(self):
         """获取数据库会话"""

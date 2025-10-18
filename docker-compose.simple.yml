@@ -1,0 +1,48 @@
+# 简化版 Docker Compose 配置
+# 适合快速部署和测试
+
+version: '3.8'
+
+services:
+  firewall:
+    image: zbaimo/nginx-firewall:latest
+    container_name: nginx-firewall
+    restart: unless-stopped
+    
+    ports:
+      - "8080:8080"
+    
+    volumes:
+      # 配置文件
+      - ./config.yaml:/app/config.yaml:ro
+      # Nginx日志（修改为你的实际路径）
+      - /var/log/nginx:/var/log/nginx:ro
+      # 数据持久化
+      - firewall-data:/data
+    
+    environment:
+      - TZ=Asia/Shanghai
+    
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: firewall-redis
+    restart: unless-stopped
+    
+    command: redis-server --appendonly yes --maxmemory 256mb
+    
+    volumes:
+      - redis-data:/data
+
+volumes:
+  firewall-data:
+  redis-data:
+
+# 使用方法:
+# docker-compose -f docker-compose.simple.yml up -d
+# 访问: http://localhost:8080
+# 登录: admin / admin
+
+
