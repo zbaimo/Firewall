@@ -298,8 +298,35 @@
         <div class="header">
             <h1>🛡️ 规则管理中心</h1>
             <div>
+                <button class="btn btn-info" onclick="loadRuleStats()" style="margin-right:10px;">📊 触发统计</button>
                 <a href="/" class="btn btn-secondary">返回首页</a>
                 <a href="/api/auth/logout" class="btn btn-danger">退出登录</a>
+            </div>
+        </div>
+        
+        <!-- 规则触发统计面板 -->
+        <div id="stats-panel" style="display:none;">
+            <div class="card" style="margin-bottom:20px;background:white;">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:15px;border-bottom:2px solid #e2e8f0;margin-bottom:15px;">
+                    <h2 style="margin:0;">📊 规则触发统计</h2>
+                    <button class="btn btn-secondary" onclick="closeStatsPanel()" style="padding:6px 12px;font-size:13px;">✕ 关闭</button>
+                </div>
+                <div>
+                    <div id="stats-summary" style="margin-bottom:20px;display:flex;gap:20px;"></div>
+                    <table id="stats-table" style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr>
+                                <th style="background:#f7fafc;padding:12px;text-align:left;font-weight:600;border-bottom:2px solid #e2e8f0;">规则名称</th>
+                                <th style="background:#f7fafc;padding:12px;text-align:left;font-weight:600;border-bottom:2px solid #e2e8f0;">类别</th>
+                                <th style="background:#f7fafc;padding:12px;text-align:left;font-weight:600;border-bottom:2px solid #e2e8f0;">威胁分值</th>
+                                <th style="background:#f7fafc;padding:12px;text-align:left;font-weight:600;border-bottom:2px solid #e2e8f0;">触发次数</th>
+                                <th style="background:#f7fafc;padding:12px;text-align:left;font-weight:600;border-bottom:2px solid #e2e8f0;">最后触发</th>
+                                <th style="background:#f7fafc;padding:12px;text-align:left;font-weight:600;border-bottom:2px solid #e2e8f0;">状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stats-tbody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
         
@@ -801,6 +828,59 @@
                 alert('保存失败: ' + error.message);
             }
         });
+        async function loadRuleStats() {
+    const statsPanel = document.getElementById('stats-panel');
+    statsPanel.style.display = 'block';
+    statsPanel.scrollIntoView({ behavior: 'smooth' });
+    
+    try {
+        const response = await fetch('/api/rules/stats');
+        const data = await response.json();
+        
+        if (data.success) {
+            const summary = document.getElementById('stats-summary');
+            summary.innerHTML = `
+                <div style="flex:1;background:#f7fafc;padding:15px;border-radius:8px;border-left:4px solid #667eea;">
+                    <div style="font-size:14px;color:#718096;">总规则数</div>
+                    <div style="font-size:24px;font-weight:bold;color:#2d3748;margin-top:5px;">${data.total_rules}</div>
+                </div>
+                <div style="flex:1;background:#f7fafc;padding:15px;border-radius:8px;border-left:4px solid #48bb78;">
+                    <div style="font-size:14px;color:#718096;">总触发次数</div>
+                    <div style="font-size:24px;font-weight:bold;color:#2d3748;margin-top:5px;">${data.total_triggers}</div>
+                </div>
+                <div style="flex:1;background:#f7fafc;padding:15px;border-radius:8px;border-left:4px solid #f56565;">
+                    <div style="font-size:14px;color:#718096;">活跃规则</div>
+                    <div style="font-size:24px;font-weight:bold;color:#2d3748;margin-top:5px;">${data.rules.length}</div>
+                </div>
+            `;
+            
+            const tbody = document.getElementById('stats-tbody');
+            tbody.innerHTML = data.rules.map(rule => `
+                <tr>
+                    <td style="font-weight:500;">${rule.name}</td>
+                    <td><span class="badge badge-info">${rule.category}</span></td>
+                    <td>${rule.threat_score}</td>
+                    <td><strong style="color:#667eea;">${rule.triggered_count}</strong></td>
+                    <td>${rule.last_triggered ? new Date(rule.last_triggered).toLocaleString('zh-CN') : '-'}</td>
+                    <td>
+                        ${rule.enabled 
+                            ? '<span class="badge badge-success">启用</span>' 
+                            : '<span class="badge badge-danger">禁用</span>'}
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            alert('加载统计失败');
+        }
+    } catch (error) {
+        console.error('加载统计失败:', error);
+        alert('加载统计失败');
+    }
+}
+
+function closeStatsPanel() {
+    document.getElementById('stats-panel').style.display = 'none';
+}
         
         // 页面加载时初始化
         loadAllData();
