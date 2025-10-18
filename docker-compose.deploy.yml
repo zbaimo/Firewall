@@ -1,6 +1,7 @@
 # ===================================================================
-# Nginx智能防火墙系统 - 部署配置
-# 用于生产环境部署
+# Nginx智能防火墙系统 - 生产部署配置
+# Version: 1.2.0
+# 基于iptables的增强型防火墙系统
 # ===================================================================
 
 services:
@@ -8,133 +9,155 @@ services:
   # 防火墙主服务
   # ===================================================================
   firewall:
-    # 使用Docker Hub上的镜像（自动拉取最新版本）
+    # Docker Hub镜像
     image: zbaimo/nginx-firewall:latest
     
-    # 或使用固定版本（生产环境推荐）
-    # image: zbaimo/nginx-firewall:v1.0.0
-    
+    # 容器配置
     container_name: nginx-firewall
-    restart: always  # 自动重启
+    restart: always
+    hostname: nginx-firewall
     
     # ===================================================================
-    # 网络配置 - 使用主机网络模式（可以操作iptables）
+    # 网络模式：主机网络（必需，用于iptables操作）
     # ===================================================================
-    
     network_mode: "host"
     
-    # 注意: 使用host网络时，容器直接使用主机网络
-    # 服务将在主机的8080端口监听
-    # 访问: http://主机IP:8080
+    # 说明：
+    # - 容器使用主机网络栈
+    # - 可以直接操作主机iptables
+    # - 服务监听端口：8080（可在config.yaml修改）
+    # - Redis连接：localhost:6379
     
     # ===================================================================
     # 数据卷挂载
     # ===================================================================
-    
     volumes:
-      # 配置文件（只读）- 必需
+      # 配置文件（只读）
       - ./config.yaml:/app/config.yaml:ro
       
-      # Nginx日志目录（只读）- 必需
+      # Nginx日志目录（只读）- ⚠️ 修改为你的实际路径
       - /root/data/Nginx:/var/log/nginx:ro
+      # Windows示例: - C:/nginx/logs:/var/log/nginx:ro
+      # Linux示例: - /var/log/nginx:/var/log/nginx:ro
       
-      # 数据持久化（必需）
+      # 数据持久化（数据库、缓存等）
       - firewall-data:/data
       
-      # 导出文件目录（推荐）
-      - ./exports:/app/exports
-      
-      # 日志文件目录（推荐，包含审计日志）
+      # 日志目录（系统日志、审计日志）
       - ./logs:/app/logs
       
-      # GeoIP数据库（可选，如果启用地理位置功能）
-      # 下载地址: https://dev.maxmind.com/geoip/geoip2/geolite2/
+      # 导出文件目录
+      - ./exports:/app/exports
+      
+      # iptables规则备份（可选）
+      - ./iptables-backup:/etc/iptables
+      
+      # GeoIP数据库（可选，如启用地理位置功能）
+      # 下载: https://dev.maxmind.com/geoip/geoip2/geolite2/
       # - ./GeoLite2-City.mmdb:/app/GeoLite2-City.mmdb:ro
     
     # ===================================================================
     # 环境变量
     # ===================================================================
-    
     environment:
-      # 时区设置
+      # 时区
       - TZ=Asia/Shanghai
       
-      # Redis配置（使用localhost因为使用host网络）
+      # Redis连接（host模式使用localhost）
       - REDIS_HOST=localhost
       - REDIS_PORT=6379
+      
+      # 运行模式
+      - ENVIRONMENT=production
+      - PYTHONUNBUFFERED=1
+      
+      # 可选：通过环境变量覆盖配置
+      # - FIREWALL_ENABLED=true
+      # - GEO_ENABLED=true
+      # - AUDIT_ENABLED=true
     
     # ===================================================================
-    # 权限配置（用于操作防火墙）
+    # 权限配置（iptables操作必需）
     # ===================================================================
     
-    # Linux环境需要特权模式来操作iptables
+    # 方式1：特权模式（推荐，功能最完整）
     privileged: true
     
-    cap_add:
-      - NET_ADMIN  # 网络管理权限
-      - NET_RAW    # 原始套接字权限
+    # 方式2：能力授权（更安全，但功能可能受限）
+    # privileged: false
+    # cap_add:
+    #   - NET_ADMIN
+    #   - NET_RAW
+    #   - SYS_MODULE
     
     # ===================================================================
-    # 资源限制（可选，防止资源耗尽）
+    # 资源限制
     # ===================================================================
-    
     deploy:
       resources:
         limits:
-          cpus: '2.0'      # 最多使用2核CPU
-          memory: 1G       # 最多使用1GB内存
+          cpus: '2.0'          # 最多2核CPU
+          memory: 1G           # 最多1GB内存
         reservations:
-          cpus: '0.5'      # 预留0.5核CPU
-          memory: 256M     # 预留256MB内存
+          cpus: '0.5'          # 预留0.5核
+          memory: 256M         # 预留256MB
     
     # ===================================================================
     # 健康检查
     # ===================================================================
-    
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/system/health"]
-      interval: 30s      # 每30秒检查一次
-      timeout: 10s       # 超时时间
-      retries: 3         # 重试次数
-      start_period: 40s  # 启动后等待40秒再开始检查
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/api/system/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     
     # ===================================================================
     # 日志配置
     # ===================================================================
-    
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"    # 单个日志文件最大10MB
-        max-file: "3"      # 保留3个日志文件
+        max-size: "10m"
+        max-file: "3"
+        compress: "true"
     
     # ===================================================================
     # 依赖服务
     # ===================================================================
-    
     depends_on:
       redis:
         condition: service_healthy
 
   # ===================================================================
-  # Redis缓存服务（性能优化）
+  # Redis缓存服务
   # ===================================================================
   redis:
     image: redis:7-alpine
     container_name: firewall-redis
     restart: always
+    hostname: firewall-redis
     
-    # 使用主机网络模式（与防火墙服务在同一网络）
+    # 使用主机网络（与防火墙服务通信）
     network_mode: "host"
     
-    # Redis配置命令
+    # Redis优化配置
     command: >
       redis-server
       --appendonly yes
+      --appendfsync everysec
       --maxmemory 512mb
       --maxmemory-policy allkeys-lru
       --save 60 1000
+      --save 300 100
+      --save 900 1
       --bind 127.0.0.1
+      --protected-mode yes
+      --tcp-backlog 511
+      --timeout 300
+      --tcp-keepalive 300
+      --daemonize no
+      --loglevel notice
     
     # 数据持久化
     volumes:
@@ -146,6 +169,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+      start_period: 10s
     
     # 资源限制
     deploy:
@@ -156,42 +180,104 @@ services:
         reservations:
           cpus: '0.25'
           memory: 128M
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
 
 # ===================================================================
-# 数据卷定义
+# 数据卷
 # ===================================================================
-
 volumes:
-  # 防火墙数据（数据库、配置等）
+  # 防火墙数据（SQLite数据库、配置等）
   firewall-data:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
   
-  # Redis数据
+  # Redis数据（持久化）
   redis-data:
     driver: local
-
-# 注意: 使用host网络模式时不需要自定义网络配置
+    driver_opts:
+      type: none
+      o: bind
+      device: ./redis-data
 
 # ===================================================================
 # 使用说明
 # ===================================================================
 #
-# 启动服务:
+# 🚀 快速启动:
 #   docker-compose -f docker-compose.deploy.yml up -d
 #
-# 查看日志:
+# 📋 查看日志:
 #   docker-compose -f docker-compose.deploy.yml logs -f
+#   docker-compose -f docker-compose.deploy.yml logs -f firewall
+#   docker-compose -f docker-compose.deploy.yml logs -f redis
 #
-# 停止服务:
+# 🛑 停止服务:
 #   docker-compose -f docker-compose.deploy.yml down
 #
-# 更新镜像:
+# 🔄 更新镜像:
 #   docker-compose -f docker-compose.deploy.yml pull
-#   docker-compose -f docker-compose.deploy.yml up -d
+#   docker-compose -f docker-compose.deploy.yml up -d --force-recreate
 #
-# 访问Web界面:
-#   http://localhost:8080
-#   默认账户: admin / admin（首次登录强制修改密码）
+# 📊 查看状态:
+#   docker-compose -f docker-compose.deploy.yml ps
+#   docker stats nginx-firewall firewall-redis
+#
+# 🔍 进入容器:
+#   docker exec -it nginx-firewall bash
+#
+# 🌐 Web访问:
+#   http://localhost:8080          # 仪表板
+#   http://localhost:8080/firewall # 防火墙管理
+#   http://localhost:8080/rules    # 规则管理
+#   http://localhost:8080/ports    # 端口管理
+#   http://localhost:8080/settings # 设置
+#
+# 👤 默认登录:
+#   用户名: admin
+#   密码: admin (首次登录强制修改)
+#
+# 🛠️ CLI工具使用:
+#   docker exec nginx-firewall python tools/firewall_cli.py --help
+#   docker exec nginx-firewall python tools/firewall_cli.py stats
+#   docker exec nginx-firewall python tools/firewall_cli.py health
+#
+# 🔥 查看iptables规则:
+#   docker exec nginx-firewall iptables -L FIREWALL_BANS -n -v
+#   docker exec nginx-firewall iptables -L FIREWALL_RATE_LIMIT -n
+#   docker exec nginx-firewall iptables -L FIREWALL_PORT_RULES -n
+#
+# 📦 备份:
+#   tar czf backup_$(date +%Y%m%d).tar.gz data/ logs/ exports/ config.yaml
+#
+# ⚙️ 配置修改:
+#   编辑 config.yaml 后重启:
+#   docker-compose -f docker-compose.deploy.yml restart firewall
 #
 # ===================================================================
-
+# 重要提示
+# ===================================================================
+#
+# ⚠️ 生产环境部署前必须修改:
+#   1. config.yaml 中的 secret_key 和 password_salt
+#   2. nginx.access_log 改为实际的日志路径
+#   3. 本文件中的 Nginx日志卷挂载路径
+#
+# ⚠️ 防火墙功能需要:
+#   1. privileged: true 或合适的 cap_add
+#   2. network_mode: "host"
+#   3. Linux内核支持iptables
+#
+# ⚠️ 数据持久化:
+#   data/ 和 redis-data/ 目录会自动创建
+#   建议定期备份这些目录
+#
+# ===================================================================

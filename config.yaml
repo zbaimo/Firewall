@@ -1,71 +1,106 @@
-# Nginx日志防火墙配置文件
+# ===================================================================
+# Nginx智能防火墙系统 - 主配置文件
+# Version: 1.2.0
+# ===================================================================
 
+# ===================================================================
 # Nginx日志配置
+# ===================================================================
 nginx:
-  access_log: "/var/log/nginx/logs/access.log"  # Windows示例: "C:/nginx/logs/access.log"
+  access_log: "/var/log/nginx/logs/access.log"
   error_log: "/var/log/nginx/logs/error.log"
-  log_format: 'combined'  # combined, json, custom
-  
+  log_format: 'combined'  # combined, json
+
+# ===================================================================
 # 数据库配置
+# ===================================================================
 database:
-  type: "sqlite"  # sqlite, mysql, postgresql
-  path: "firewall.db"  # SQLite数据库文件
-  # MySQL/PostgreSQL配置（可选）
+  type: "sqlite"
+  path: "/data/firewall.db"
+  
+  # 高级用户可以使用MySQL或PostgreSQL
+  # type: "mysql"
   # host: "localhost"
   # port: 3306
   # user: "firewall"
-  # password: "password"
+  # password: "your_password"
   # database: "firewall_db"
 
-# Redis配置（用于高性能计数和缓存）⭐ 性能优化
+# ===================================================================
+# Redis缓存（性能优化）
+# ===================================================================
 redis:
-  enabled: true  # 强烈建议启用，性能提升60%
-  host: "localhost"
+  enabled: true              # 强烈推荐启用，性能提升60%
+  host: "localhost"          # Docker host模式使用localhost
   port: 6379
   db: 0
   password: null
 
-# 指纹系统配置
+# ===================================================================
+# 防火墙配置
+# ===================================================================
+firewall:
+  enabled: true
+  os: "auto"  # auto, windows, linux
+  
+  # 封禁配置
+  ban:
+    default_duration: 3600       # 默认封禁1小时
+    permanent_threshold: 5       # 5次封禁后永久封禁
+  
+  # 白名单（永不封禁）
+  whitelist:
+    - "127.0.0.1"
+    - "::1"
+    # - "192.168.1.0/24"       # 可以添加CIDR
+    # - "10.0.0.0/8"
+  
+  # 黑名单（直接封禁）
+  blacklist: []
+    # - "1.2.3.4"
+
+# ===================================================================
+# 指纹识别系统
+# ===================================================================
 fingerprint:
-  # 基础指纹字段（用于生成base_hash）
+  # 基础指纹字段
   base_fields:
     - ip
     - user_agent
   
-  # 行为指纹字段（用于检测变化）
+  # 行为指纹字段
   behavior_fields:
     - request_path
     - request_method
     - status_code
     - referer
-    - query_params
   
-  # 数据保留期限（天）
-  # 智能清理策略：
-  # - 如果用户3天没有新访问，第4天删除该用户的所有记录
-  # - 如果用户持续有访问，则持续保存（last_seen不断更新）
+  # 数据保留策略（智能清理）
+  # 用户3天无活动则删除，有活动则持续保存
   retention_days: 3
   
-  # 触发身份链创建的阈值
+  # 身份链创建阈值
   identity_chain_threshold:
-    same_base_count: 10      # 相同基础指纹出现10次
-    behavior_change_rate: 0.3  # 行为变化率超过30%
+    same_base_count: 10
+    behavior_change_rate: 0.3
 
-# 威胁检测规则
+# ===================================================================
+# 威胁检测（基础配置）
+# ===================================================================
 threat_detection:
   # 频率限制
   rate_limit:
     enabled: true
-    window_seconds: 60       # 时间窗口60秒
-    max_requests: 100        # 最大请求数
-    
+    window_seconds: 60
+    max_requests: 100
+  
   # 404扫描检测
   scan_detection:
     enabled: true
-    window_seconds: 300      # 5分钟内
-    max_404_count: 20        # 超过20个404
-    
-  # 敏感路径访问
+    window_seconds: 300
+    max_404_count: 20
+  
+  # 敏感路径
   sensitive_paths:
     enabled: true
     paths:
@@ -74,179 +109,113 @@ threat_detection:
       - "/admin"
       - "/phpmyadmin"
       - "/wp-admin"
-      - "/.aws"
-      - "/.ssh"
-      - "/config"
-      - "/backup"
-      
+  
   # SQL注入检测
   sql_injection:
     enabled: true
-    patterns:
-      - "union.*select"
-      - "select.*from"
-      - "insert.*into"
-      - "delete.*from"
-      - "drop.*table"
-      - "exec.*xp_"
-      - "'; --"
-      - "' or '1'='1"
-      
+  
   # XSS检测
   xss_detection:
     enabled: true
-    patterns:
-      - "<script"
-      - "javascript:"
-      - "onerror="
-      - "onload="
-      - "eval\\("
-      - "alert\\("
-      
-  # User-Agent黑名单
+  
+  # 恶意User-Agent
   bad_user_agents:
     enabled: true
-    patterns:
-      - "masscan"
-      - "nmap"
-      - "nikto"
-      - "sqlmap"
-      - "acunetix"
-      - "burpsuite"
 
-# 防火墙配置
-firewall:
-  enabled: true
-  os: "auto"  # auto, windows, linux
-  
-  # 封禁配置
-  ban:
-    default_duration: 3600    # 默认封禁时长（秒）
-    permanent_threshold: 5    # 5次封禁后永久封禁
-    
-  # 白名单（永不封禁）
-  whitelist:
-    - "127.0.0.1"
-    - "::1"
-    # - "192.168.1.0/24"  # 支持CIDR格式
-    
-  # 黑名单（直接封禁）
-  blacklist: []
+# 注意: 详细的检测规则现在通过Web界面配置
+# 访问 http://your-server:8800/rules 进行管理
 
-# 自动解封配置
-auto_unban:
-  enabled: true
-  check_interval: 300  # 每5分钟检查一次
-
-# 威胁评分系统配置
+# ===================================================================
+# 威胁评分系统
+# ===================================================================
 scoring_system:
   enabled: true
   
-  # 分数衰减配置（分数会随时间自然降低）
-  score_decay_hours: 24        # 每24小时衰减一次
-  score_decay_rate: 0.5        # 衰减率：0.5表示减半
+  # 分数衰减（分数会随时间自然降低）
+  score_decay_hours: 24
+  score_decay_rate: 0.5
   
-  # 封禁阈值（分数达到阈值时触发封禁）
+  # 封禁阈值
   ban_thresholds:
-    temporary_ban: 60          # 临时封禁：60分
-    extended_ban: 100          # 延长封禁：100分
-    permanent_ban: 150         # 永久封禁：150分
+    temporary_ban: 60          # 临时封禁
+    extended_ban: 100          # 延长封禁
+    permanent_ban: 150         # 永久封禁
   
   # 封禁时长（秒）
   ban_durations:
     temporary_ban: 3600        # 1小时
     extended_ban: 86400        # 24小时
-    permanent_ban: null        # 永久（null表示不解封）
-  
-  # 威胁类型基础分数（可自定义）
-  threat_scores:
-    sql_injection: 50          # SQL注入
-    xss_attack: 40             # XSS攻击
-    path_scan: 30              # 路径扫描
-    rate_limit_exceeded: 25    # 频率超限
-    sensitive_path_access: 15  # 敏感路径访问
-    bad_user_agent: 20         # 恶意User-Agent
-    multiple_404: 10           # 多次404
-    suspicious_query: 15       # 可疑查询
-  
-  # 严重程度乘数
-  severity_multipliers:
-    critical: 2.0              # 严重威胁 x2
-    high: 1.5                  # 高危威胁 x1.5
-    medium: 1.0                # 中等威胁 x1
-    low: 0.5                   # 低危威胁 x0.5
-  
-  # 行为模式额外分数
-  behavior_patterns:
-    tool_switching: 30         # 工具切换（攻击特征）
-    rapid_behavior_change: 25  # 快速行为变化
-    time_pattern_anomaly: 15   # 异常时间模式
-    geographic_anomaly: 20     # 地理位置异常
-  
-  # 分数奖励（良好行为可以降低分数）
-  score_rewards:
-    normal_access: -1          # 正常访问：-1分
-    successful_login: -5       # 成功登录：-5分
-    valid_session: -2          # 有效会话：-2分
+    permanent_ban: null        # 永久
 
-# IP地理位置分析 ⭐ 新功能
+# 注意: 详细的评分规则现在通过Web界面配置
+# 访问 http://your-server:8800/rules 进行管理
+
+# ===================================================================
+# IP地理位置分析
+# ===================================================================
 geo_location:
-  enabled: true  # 启用地理位置分析
-  database_path: "GeoLite2-City.mmdb"  # GeoIP数据库路径
-  anomaly_threshold: 1000  # 异常距离阈值（km）
-  blocked_countries: []  # 封禁的国家代码列表，如: ["CN", "RU"]
+  enabled: true
+  database_path: "GeoLite2-City.mmdb"
+  anomaly_threshold: 1000      # km
+  blocked_countries: []        # 例如: ["KP", "IR"]
 
-# 审计日志配置 ⭐ 合规审计
+# ===================================================================
+# 审计日志
+# ===================================================================
 audit:
-  enabled: true  # 启用审计日志
-  file: "logs/audit.log"  # 审计日志文件
-  max_size_mb: 100  # 单文件最大大小（MB）
+  enabled: true
+  file: "logs/audit.log"
+  max_size_mb: 100
 
-# 记录导出配置
+# ===================================================================
+# 数据导出
+# ===================================================================
 export:
-  # 导出目录
   directory: "exports"
-  
-  # 自动导出
-  auto_export_enabled: false      # 是否启用自动导出
-  auto_export_interval_hours: 24   # 自动导出间隔（小时）
-  auto_export_format: "json"       # 导出格式：json, csv, txt
-  
-  # 导出保留天数
-  retention_days: 30               # 导出文件保留30天
+  auto_export_enabled: false
+  auto_export_interval_hours: 24
+  auto_export_format: "json"
+  retention_days: 30
 
-# 日志配置
+# ===================================================================
+# 系统日志
+# ===================================================================
 logging:
   level: "INFO"  # DEBUG, INFO, WARNING, ERROR
-  file: "firewall.log"
+  file: "logs/firewall.log"
   max_size_mb: 100
   backup_count: 5
 
+# ===================================================================
 # Web管理后台
+# ===================================================================
 web_dashboard:
   enabled: true
-  host: "172.18.0.1"
-  port: 8800
-  secret_key: "jam-lividly-resemble-regime"  # 请修改（用于session加密）
+  host: "0.0.0.0"            # 监听所有接口
+  port: 8080                 # 端口
+  secret_key: "CHANGE_ME_TO_RANDOM_SECRET_KEY"  # ⚠️ 生产环境必须修改
 
-# 用户认证配置 ⭐ 新功能
+# ===================================================================
+# 用户认证
+# ===================================================================
 authentication:
-  enabled: true  # 启用用户认证
-  password_salt: "firewall-salt-2025"  # 密码加盐（请修改）
-  session_timeout_hours: 24  # 会话超时时间（小时）
+  enabled: true
+  password_salt: "CHANGE_ME_TO_RANDOM_SALT"     # ⚠️ 生产环境必须修改
+  session_timeout_hours: 24
 
-# 实时告警配置 ⭐ 新功能
+# ===================================================================
+# 实时告警（可选）
+# ===================================================================
 alerts:
-  enabled: false  # 设为true启用告警
+  enabled: false             # 设为true启用告警
   
   # 告警触发条件
-  alert_on_events:  # 哪些威胁类型触发告警
+  alert_on_events:
     - "sql_injection"
     - "xss_attack"
-    - "rate_limit_exceeded"
-    - "path_scan"
+    - "ddos_attack"
   
-  min_alert_interval_seconds: 300  # 同一IP最小告警间隔（防止告警风暴）
+  min_alert_interval_seconds: 300
   
   # 邮件告警
   email:
@@ -254,52 +223,62 @@ alerts:
     smtp_host: "smtp.gmail.com"
     smtp_port: 587
     username: "your-email@gmail.com"
-    password: "your-app-password"  # Gmail需使用应用专用密码
+    password: "your-app-password"
     from_addr: "firewall@yourdomain.com"
     to_addrs:
       - "admin@yourdomain.com"
   
-  # Webhook告警（企业微信、钉钉、Slack）
+  # Webhook告警
   webhook:
     enabled: false
-    url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"
+    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
   
-  # Telegram Bot告警
+  # Telegram告警
   telegram:
     enabled: false
     bot_token: "your-bot-token"
     chat_id: "your-chat-id"
 
-# 自定义规则引擎 ⭐ 高级功能
-custom_rules:
-  # 示例规则1：深夜异常访问
-  - name: "深夜异常访问"
-    description: "检测凌晨2-5点的敏感路径访问"
-    enabled: true
-    priority: 100
-    conditions:
-      time_range: "02:00-05:00"
-      path_contains: "/admin"
-    score: 30
-    action: "score"
-  
-  # 示例规则2：疑似爬虫
-  - name: "疑似爬虫"
-    description: "检测User-Agent包含bot且访问频繁"
-    enabled: false
-    priority: 50
-    conditions:
-      user_agent_contains: "bot"
-    score: 15
-    action: "score"
-  
-  # 示例规则3：大文件下载
-  - name: "大文件下载检测"
-    description: "检测响应超过10MB的请求"
-    enabled: false
-    priority: 20
-    conditions:
-      response_size_gt: 10485760  # 10MB
-    score: 5
-    action: "monitor"
+# ===================================================================
+# 自动解封
+# ===================================================================
+auto_unban:
+  enabled: true
+  check_interval: 300        # 每5分钟检查一次
 
+# ===================================================================
+# 高级功能
+# ===================================================================
+
+# 自定义规则引擎
+# 注意: 规则现在通过Web界面配置
+# 访问 http://your-server:8800/rules
+
+# ===================================================================
+# 配置说明
+# ===================================================================
+#
+# 1. 生产环境部署前必须修改：
+#    - web_dashboard.secret_key (随机密钥)
+#    - authentication.password_salt (随机盐值)
+#    - nginx.access_log (实际日志路径)
+#
+# 2. 可选功能配置：
+#    - geo_location: 启用地理位置分析需要下载GeoLite2数据库
+#    - alerts: 配置邮件、Webhook或Telegram告警
+#    - redis: 性能优化，强烈建议启用
+#
+# 3. 威胁检测规则和自定义规则：
+#    通过Web界面管理，无需在此配置
+#    访问: http://your-server:8800/rules
+#
+# 4. 端口管理：
+#    通过Web界面管理
+#    访问: http://your-server:8800/ports
+#
+# 5. 防火墙操作：
+#    通过Web界面或CLI工具管理
+#    Web: http://your-server:8800/firewall
+#    CLI: docker exec nginx-firewall python tools/firewall_cli.py
+#
+# ===================================================================
