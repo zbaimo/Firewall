@@ -46,6 +46,9 @@ class FirewallSystem:
         print("正在初始化数据库...")
         self.db = Database(self.config)
         
+        # 初始化默认规则（如果数据库是空的）
+        self._init_default_rules()
+        
         # 初始化性能优化模块
         print("正在初始化性能优化模块...")
         self.cache_manager = CacheManager(self.config)
@@ -82,6 +85,67 @@ class FirewallSystem:
         
         print("✓ 初始化完成")
         print()
+    
+    def _init_default_rules(self):
+        """初始化默认规则（首次启动时）"""
+        from models.database import ThreatDetectionRule, ScoringRule
+        import json
+        
+        session = self.db.get_session()
+        try:
+            # 检查是否需要初始化
+            threat_count = session.query(ThreatDetectionRule).count()
+            custom_count = session.query(ScoringRule).count()
+            
+            if threat_count == 0:
+                # 初始化默认威胁检测规则
+                default_threats = [
+                    {'category': 'sql_injection', 'name': 'SQL注入检测', 'enabled': True,
+                     'patterns': json.dumps(["union.*select", "'; --", "' or '1'='1"]),
+                     'threat_score': 50, 'description': '检测SQL注入攻击'},
+                    {'category': 'xss_attack', 'name': 'XSS攻击检测', 'enabled': True,
+                     'patterns': json.dumps(["<script", "javascript:", "onerror="]),
+                     'threat_score': 40, 'description': '检测XSS攻击'},
+                    {'category': 'rate_limit', 'name': '频率限制', 'enabled': True,
+                     'parameters': json.dumps({'window_seconds': 60, 'max_requests': 100}),
+                     'threat_score': 25, 'description': '检测高频访问'},
+                    {'category': 'scan_detection', 'name': '路径扫描', 'enabled': True,
+                     'parameters': json.dumps({'window_seconds': 300, 'max_404_count': 20}),
+                     'threat_score': 30, 'description': '检测404扫描'},
+                    {'category': 'sensitive_path', 'name': '敏感路径', 'enabled': True,
+                     'patterns': json.dumps(["/.env", "/.git", "/admin", "/phpmyadmin"]),
+                     'threat_score': 15, 'description': '检测敏感路径访问'},
+                    {'category': 'bad_user_agent', 'name': '恶意UA', 'enabled': True,
+                     'patterns': json.dumps(["masscan", "nmap", "nikto", "sqlmap"]),
+                     'threat_score': 20, 'description': '检测扫描工具'}
+                ]
+                
+                for rule_data in default_threats:
+                    session.add(ThreatDetectionRule(**rule_data))
+                
+                session.commit()
+                print(f"✓ 已初始化 {len(default_threats)} 条默认威胁检测规则")
+            
+            if custom_count == 0:
+                # 初始化默认自定义规则
+                default_customs = [
+                    {'name': '深夜管理员访问', 'enabled': True, 'rule_type': 'time',
+                     'conditions': json.dumps({'time_range': '02:00-05:00', 'path_contains': '/admin'}),
+                     'score': 30, 'action': 'score', 'priority': 100,
+                     'description': '检测凌晨2-5点的管理后台访问'}
+                ]
+                
+                for rule_data in default_customs:
+                    session.add(ScoringRule(**rule_data))
+                
+                session.commit()
+                print(f"✓ 已初始化 {len(default_customs)} 条默认自定义规则")
+                
+        except Exception as e:
+            print(f"⚠ 初始化默认规则失败: {e}")
+            session.rollback()
+        finally:
+            session.close()
     
     def process_log_entry(self, log_data: dict):
         """

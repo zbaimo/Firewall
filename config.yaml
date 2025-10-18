@@ -1,6 +1,12 @@
 # ===================================================================
-# Nginx智能防火墙系统 - 主配置文件
+# Nginx智能防火墙系统 - 配置文件
 # Version: 1.2.0
+# 
+# 所有规则配置请通过Web界面管理：
+#   - 威胁检测规则: http://your-server:8080/rules
+#   - 自定义规则: http://your-server:8080/rules
+#   - 端口规则: http://your-server:8080/ports
+#   - 防火墙规则: http://your-server:8080/firewall
 # ===================================================================
 
 # ===================================================================
@@ -9,7 +15,7 @@
 nginx:
   access_log: "/var/log/nginx/logs/access.log"
   error_log: "/var/log/nginx/logs/error.log"
-  log_format: 'combined'  # combined, json
+  log_format: 'combined'
 
 # ===================================================================
 # 数据库配置
@@ -17,147 +23,74 @@ nginx:
 database:
   type: "sqlite"
   path: "/data/firewall.db"
-  
-  # 高级用户可以使用MySQL或PostgreSQL
-  # type: "mysql"
-  # host: "localhost"
-  # port: 3306
-  # user: "firewall"
-  # password: "your_password"
-  # database: "firewall_db"
 
 # ===================================================================
-# Redis缓存（性能优化）
+# Redis缓存
 # ===================================================================
 redis:
-  enabled: true              # 强烈推荐启用，性能提升60%
-  host: "localhost"          # Docker host模式使用localhost
+  enabled: true
+  host: "localhost"
   port: 6379
   db: 0
   password: null
 
 # ===================================================================
-# 防火墙配置
+# 防火墙基础配置
 # ===================================================================
 firewall:
   enabled: true
-  os: "auto"  # auto, windows, linux
-  
-  # 封禁配置
-  ban:
-    default_duration: 3600       # 默认封禁1小时
-    permanent_threshold: 5       # 5次封禁后永久封禁
+  os: "auto"
   
   # 白名单（永不封禁）
   whitelist:
     - "127.0.0.1"
     - "::1"
-    # - "192.168.1.0/24"       # 可以添加CIDR
-    # - "10.0.0.0/8"
   
   # 黑名单（直接封禁）
   blacklist: []
-    # - "1.2.3.4"
 
 # ===================================================================
-# 指纹识别系统
+# 指纹识别
 # ===================================================================
 fingerprint:
-  # 基础指纹字段
   base_fields:
     - ip
     - user_agent
   
-  # 行为指纹字段
   behavior_fields:
     - request_path
     - request_method
     - status_code
-    - referer
   
-  # 数据保留策略（智能清理）
-  # 用户3天无活动则删除，有活动则持续保存
   retention_days: 3
-  
-  # 身份链创建阈值
-  identity_chain_threshold:
-    same_base_count: 10
-    behavior_change_rate: 0.3
-
-# ===================================================================
-# 威胁检测（基础配置）
-# ===================================================================
-threat_detection:
-  # 频率限制
-  rate_limit:
-    enabled: true
-    window_seconds: 60
-    max_requests: 100
-  
-  # 404扫描检测
-  scan_detection:
-    enabled: true
-    window_seconds: 300
-    max_404_count: 20
-  
-  # 敏感路径
-  sensitive_paths:
-    enabled: true
-    paths:
-      - "/.env"
-      - "/.git"
-      - "/admin"
-      - "/phpmyadmin"
-      - "/wp-admin"
-  
-  # SQL注入检测
-  sql_injection:
-    enabled: true
-  
-  # XSS检测
-  xss_detection:
-    enabled: true
-  
-  # 恶意User-Agent
-  bad_user_agents:
-    enabled: true
-
-# 注意: 详细的检测规则现在通过Web界面配置
-# 访问 http://your-server:8800/rules 进行管理
 
 # ===================================================================
 # 威胁评分系统
 # ===================================================================
 scoring_system:
   enabled: true
-  
-  # 分数衰减（分数会随时间自然降低）
   score_decay_hours: 24
   score_decay_rate: 0.5
   
   # 封禁阈值
   ban_thresholds:
-    temporary_ban: 60          # 临时封禁
-    extended_ban: 100          # 延长封禁
-    permanent_ban: 150         # 永久封禁
+    temporary_ban: 60
+    extended_ban: 100
+    permanent_ban: 150
   
   # 封禁时长（秒）
   ban_durations:
-    temporary_ban: 3600        # 1小时
-    extended_ban: 86400        # 24小时
-    permanent_ban: null        # 永久
-
-# 注意: 详细的评分规则现在通过Web界面配置
-# 访问 http://your-server:8800/rules 进行管理
+    temporary_ban: 3600
+    extended_ban: 86400
+    permanent_ban: null
 
 # ===================================================================
-# IP地理位置分析
+# IP地理位置
 # ===================================================================
 geo_location:
   enabled: true
   database_path: "GeoLite2-City.mmdb"
-  anomaly_threshold: 1000      # km
-  blocked_countries: []        # 例如: ["KP", "IR"]
+  anomaly_threshold: 1000
 
 # ===================================================================
 # 审计日志
@@ -172,16 +105,13 @@ audit:
 # ===================================================================
 export:
   directory: "exports"
-  auto_export_enabled: false
-  auto_export_interval_hours: 24
-  auto_export_format: "json"
   retention_days: 30
 
 # ===================================================================
 # 系统日志
 # ===================================================================
 logging:
-  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
   file: "logs/firewall.log"
   max_size_mb: 100
   backup_count: 5
@@ -191,8 +121,8 @@ logging:
 # ===================================================================
 web_dashboard:
   enabled: true
-  host: "0.0.0.0"            # 监听所有接口
-  port: 8080                 # 端口
+  host: "0.0.0.0"
+  port: 8080
   secret_key: "CHANGE_ME_TO_RANDOM_SECRET_KEY"  # ⚠️ 生产环境必须修改
 
 # ===================================================================
@@ -207,17 +137,8 @@ authentication:
 # 实时告警（可选）
 # ===================================================================
 alerts:
-  enabled: false             # 设为true启用告警
+  enabled: false
   
-  # 告警触发条件
-  alert_on_events:
-    - "sql_injection"
-    - "xss_attack"
-    - "ddos_attack"
-  
-  min_alert_interval_seconds: 300
-  
-  # 邮件告警
   email:
     enabled: false
     smtp_host: "smtp.gmail.com"
@@ -228,12 +149,10 @@ alerts:
     to_addrs:
       - "admin@yourdomain.com"
   
-  # Webhook告警
   webhook:
     enabled: false
-    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+    url: "https://your-webhook-url"
   
-  # Telegram告警
   telegram:
     enabled: false
     bot_token: "your-bot-token"
@@ -244,41 +163,39 @@ alerts:
 # ===================================================================
 auto_unban:
   enabled: true
-  check_interval: 300        # 每5分钟检查一次
+  check_interval: 300
 
 # ===================================================================
-# 高级功能
-# ===================================================================
-
-# 自定义规则引擎
-# 注意: 规则现在通过Web界面配置
-# 访问 http://your-server:8800/rules
-
-# ===================================================================
-# 配置说明
+# 📝 配置说明
 # ===================================================================
 #
-# 1. 生产环境部署前必须修改：
-#    - web_dashboard.secret_key (随机密钥)
-#    - authentication.password_salt (随机盐值)
-#    - nginx.access_log (实际日志路径)
+# 🔧 所有规则配置现在通过Web界面管理：
 #
-# 2. 可选功能配置：
-#    - geo_location: 启用地理位置分析需要下载GeoLite2数据库
-#    - alerts: 配置邮件、Webhook或Telegram告警
-#    - redis: 性能优化，强烈建议启用
+#   威胁检测规则（SQL注入、XSS、扫描等）：
+#     👉 http://your-server:8080/rules
 #
-# 3. 威胁检测规则和自定义规则：
-#    通过Web界面管理，无需在此配置
-#    访问: http://your-server:8800/rules
+#   自定义评分规则（时间规则、行为规则等）：
+#     👉 http://your-server:8080/rules
 #
-# 4. 端口管理：
-#    通过Web界面管理
-#    访问: http://your-server:8800/ports
+#   端口规则（开放、关闭、阻止）：
+#     👉 http://your-server:8080/ports
 #
-# 5. 防火墙操作：
-#    通过Web界面或CLI工具管理
-#    Web: http://your-server:8800/firewall
-#    CLI: docker exec nginx-firewall python tools/firewall_cli.py
+#   防火墙操作（封禁、解封、批量）：
+#     👉 http://your-server:8080/firewall
+#
+# 🚀 或使用CLI工具：
+#   docker exec nginx-firewall python tools/firewall_cli.py --help
+#
+# ⚠️ 生产环境部署前必须：
+#   1. 修改 secret_key 为随机值
+#   2. 修改 password_salt 为随机值
+#   3. 配置正确的 nginx.access_log 路径
+#   4. 在Web界面添加检测规则
+#
+# 📖 详细文档：
+#   - README.md - 项目介绍
+#   - QUICK_START.md - 快速开始
+#   - IPTABLES_FIREWALL_GUIDE.md - iptables指南
+#   - FIREWALL_CLI_GUIDE.md - CLI工具手册
 #
 # ===================================================================
