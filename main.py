@@ -47,7 +47,13 @@ class FirewallSystem:
         self.db = Database(self.config)
         
         # 初始化默认规则（如果数据库是空的）
-        self._init_default_rules()
+        try:
+            self._init_default_rules()
+        except ImportError:
+            # 兼容旧版本（没有ThreatDetectionRule表）
+            print("ℹ 跳过规则初始化（使用旧版数据库结构）")
+        except Exception as e:
+            print(f"⚠ 规则初始化失败: {e}")
         
         # 初始化性能优化模块
         print("正在初始化性能优化模块...")
